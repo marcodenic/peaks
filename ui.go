@@ -1,17 +1,15 @@
 // Package main - UI components and formatting utilities
 //
-// This file provides UI components for displaying bandwidth statistics,
-// help information, and various formatting utilities for human-readable
-// display of bandwidth, bytes, and duration values.
+// This file provides UI components for displaying bandwidth statistics
+// and various formatting utilities for human-readable display of 
+// bandwidth, bytes, and duration values.
 package main
 
 import (
 	"fmt"
 	"time"
 
-	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // KeyMap defines the key bindings for the application
@@ -19,21 +17,10 @@ type KeyMap struct {
 	Reset key.Binding
 	Pause key.Binding
 	Stats key.Binding
-	Help  key.Binding
 	Quit  key.Binding
 }
 
-// ShortHelp returns keybindings to be shown in the mini help view
-func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Help, k.Reset, k.Pause, k.Stats, k.Quit}
-}
 
-// FullHelp returns keybindings for the expanded help view
-func (k KeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		{k.Reset, k.Pause, k.Stats, k.Help, k.Quit},
-	}
-}
 
 var keys = KeyMap{
 	Reset: key.NewBinding(
@@ -47,10 +34,6 @@ var keys = KeyMap{
 	Stats: key.NewBinding(
 		key.WithKeys("s"),
 		key.WithHelp("s", "toggle statusbar"),
-	),
-	Help: key.NewBinding(
-		key.WithKeys("?"),
-		key.WithHelp("?", "toggle help"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "esc", "ctrl+c"),
@@ -100,28 +83,14 @@ func (s *Stats) GetUptime() time.Duration {
 
 // Enhanced UI components
 type UIComponents struct {
-	help  help.Model
 	stats *Stats
 }
 
 // NewUIComponents creates new UI components
 func NewUIComponents() *UIComponents {
-	h := help.New()
-	h.Styles.ShortKey = lipgloss.NewStyle().Foreground(lipgloss.Color("#00D7FF"))
-	h.Styles.ShortDesc = lipgloss.NewStyle().Foreground(lipgloss.Color("#626262"))
-	h.Styles.FullKey = lipgloss.NewStyle().Foreground(lipgloss.Color("#00D7FF"))
-	h.Styles.FullDesc = lipgloss.NewStyle().Foreground(lipgloss.Color("#626262"))
-	h.Styles.FullSeparator = lipgloss.NewStyle().Foreground(lipgloss.Color("#3C3C3C"))
-
 	return &UIComponents{
-		help:  h,
 		stats: NewStats(),
 	}
-}
-
-// RenderHelp creates a beautiful help display
-func (ui *UIComponents) RenderHelp() string {
-	return ui.help.View(keys)
 }
 
 // formatBandwidth formats bandwidth for UI display

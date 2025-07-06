@@ -230,7 +230,7 @@ func (bc *BrailleChart) Render() string {
 
 // renderEmptyChart renders a placeholder when no data is available
 func (bc *BrailleChart) renderEmptyChart() string {
-	chartHeight := bc.height - 3
+	chartHeight := bc.height // Use the height that was set via SetHeight()
 	if chartHeight < minChartHeight {
 		chartHeight = minChartHeight
 	}
@@ -276,7 +276,7 @@ func (bc *BrailleChart) renderBrailleChart(width int) string {
 
 // calculateDimensions calculates chart dimensions and returns key values
 func (bc *BrailleChart) calculateDimensions() (chartHeight, halfHeight int) {
-	chartHeight = bc.height - 3 // Reserve space for footer and help
+	chartHeight = bc.height // Use the height that was set via SetHeight()
 	if chartHeight < minChartHeight {
 		chartHeight = minChartHeight
 	}

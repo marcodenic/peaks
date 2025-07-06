@@ -78,16 +78,16 @@ go build -o peaks
 | `q` / `Ctrl+C` | Quit |
 | `p` / `Space` | Pause/Resume monitoring |
 | `r` | Reset chart and statistics |
-| `s` | Toggle statistics panel |
-| `?` | Toggle help |
+| `s` | Toggle statusbar |
 
 ## 🖥️ Screenshots
 
 The tool displays:
 - Real-time split-axis braille chart with upload below and download above the axis
 - Current bandwidth rates in the footer
-- Optional statistics panel with uptime, peaks, and totals
+- Optional statusbar with uptime, peaks, and totals
 - Live/paused status indicator
+- Always-visible mini-help with essential commands
 - Beautiful color-coded interface with clear traffic separation
 
 ## 🛠️ Technical Details

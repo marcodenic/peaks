@@ -6,7 +6,7 @@
 // Features:
 //   - Real-time bandwidth monitoring with split-axis braille charts
 //   - Cross-platform support (Linux, macOS, Windows)
-//   - Interactive controls for pause, reset, and help
+//   - Interactive controls for pause, reset, and statistics
 //   - Beautiful color-coded interface with traffic separation
 //   - Detailed statistics tracking
 //
@@ -19,7 +19,7 @@
 //	q/Ctrl+C: Quit
 //	p/Space:  Pause/Resume
 //	r:        Reset chart and statistics
-//	?:        Toggle help
+//	s:        Toggle statusbar
 package main
 
 import (
@@ -62,7 +62,6 @@ type model struct {
 	ready     bool
 	quitting  bool
 	paused    bool
-	showHelp  bool
 	// Optimization: cache current rates to avoid repeated calculations
 	currentUpload   uint64
 	currentDownload uint64
@@ -126,10 +125,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.ready = true
-		// Set chart width to fit terminal width with minimal padding
-		m.chart.SetWidth(msg.Width - 2) // Account for minimal padding
-		// Set chart height to fill most of the terminal height - be more aggressive
-		m.chart.SetHeight(msg.Height - 2) // Account for footer and help text (reduced from 4 to 2)
+		// Set chart width to fit terminal width exactly
+		m.chart.SetWidth(msg.Width)
+		// Calculate exact height: total - mini help (1 line) - statusbar (1 line if shown)
+		chartHeight := msg.Height - 1 // Reserve 1 line for mini help
+		if m.showStatusbar {
+			chartHeight -= 1 // Reserve 1 line for statusbar
+		}
+		m.chart.SetHeight(chartHeight)
 		// Set statusbar width
 		m.statusbar.SetSize(msg.Width)
 		return m, nil
@@ -148,9 +151,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case key.Matches(msg, keys.Stats):
 			m.showStatusbar = !m.showStatusbar
-			return m, nil
-		case key.Matches(msg, keys.Help):
-			m.showHelp = !m.showHelp
 			return m, nil
 		}
 
@@ -235,34 +235,17 @@ func (m model) View() string {
 		contentWithFooter = mainContent
 	}
 
-	// Add help if shown
-	if m.showHelp {
-		helpContent := m.ui.RenderHelp()
-		helpStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#9CA3AF")).
-			Background(lipgloss.Color("#1F2937")).
-			Padding(1).
-			Margin(1, 0)
+	// Show mini help at the bottom
+	miniHelpStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#6B7280")).
+		Faint(true)
 
-		styledHelp := helpStyle.Render(helpContent)
-		contentWithFooter = lipgloss.JoinVertical(
-			lipgloss.Left,
-			contentWithFooter,
-			styledHelp,
-		)
-	} else {
-		// Show mini help
-		miniHelpStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#6B7280")).
-			Faint(true)
-
-		miniHelp := miniHelpStyle.Render("Press '?' for help • 'p' to pause • 's' to toggle statusbar • 'r' to reset • 'q' to quit")
-		contentWithFooter = lipgloss.JoinVertical(
-			lipgloss.Left,
-			contentWithFooter,
-			miniHelp,
-		)
-	}
+	miniHelp := miniHelpStyle.Render("'p' to pause • 's' to toggle statusbar • 'r' to reset • 'q' to quit")
+	contentWithFooter = lipgloss.JoinVertical(
+		lipgloss.Left,
+		contentWithFooter,
+		miniHelp,
+	)
 
 	// Return the content without centering to fill the terminal
 	return contentWithFooter

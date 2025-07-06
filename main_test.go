@@ -64,13 +64,16 @@ func TestUIComponents(t *testing.T) {
 		t.Fatal("Failed to create UI components")
 	}
 
-	// Test help rendering
-	help := ui.RenderHelp()
-	if help == "" {
-		t.Fatal("Help rendered empty string")
+	// Test stats functionality
+	ui.stats.Update(1024, 2048)
+	if ui.stats.PeakUpload != 1024 {
+		t.Errorf("Expected peak upload 1024, got %d", ui.stats.PeakUpload)
+	}
+	if ui.stats.PeakDownload != 2048 {
+		t.Errorf("Expected peak download 2048, got %d", ui.stats.PeakDownload)
 	}
 
-	t.Logf("Help rendered successfully: %d characters", len(help))
+	t.Logf("UI components created and tested successfully")
 }
 
 func TestTickMsg(t *testing.T) {

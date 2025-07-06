@@ -35,7 +35,7 @@ if go install github.com/marcodenic/peaks@latest; then
     echo "   q/Ctrl+C - Quit"
     echo "   p/Space  - Pause/Resume"
     echo "   r        - Reset chart"
-    echo "   ?        - Toggle help"
+    echo "   s        - Toggle statusbar"
 else
     echo "❌ Installation failed. Please check your internet connection and try again."
     exit 1
