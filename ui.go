@@ -162,6 +162,26 @@ func (ui *UIComponents) RenderHelp() string {
 	return ui.help.View(keys)
 }
 
+// formatBandwidth formats bandwidth for UI display
+func formatBandwidth(bps uint64) string {
+	const (
+		KB = 1024
+		MB = KB * 1024
+		GB = MB * 1024
+	)
+
+	switch {
+	case bps >= GB:
+		return fmt.Sprintf("%.2f GB/s", float64(bps)/GB)
+	case bps >= MB:
+		return fmt.Sprintf("%.2f MB/s", float64(bps)/MB)
+	case bps >= KB:
+		return fmt.Sprintf("%.2f KB/s", float64(bps)/KB)
+	default:
+		return fmt.Sprintf("%d B/s", bps)
+	}
+}
+
 // formatDuration formats a duration in a human-readable way
 func formatDuration(d time.Duration) string {
 	if d < time.Minute {

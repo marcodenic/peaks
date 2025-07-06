@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -26,12 +24,6 @@ var (
 	downloadStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#34D399")). // Green for download
 			Bold(true)
-
-	footerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#D1D5DB")).
-			Background(lipgloss.Color("#374151")).
-			Padding(0, 1).
-			MarginTop(1)
 )
 
 type tickMsg time.Time
@@ -151,11 +143,8 @@ func (m model) View() string {
 	// Create the main display area (just the chart)
 	mainContent := chartContent
 
-	// Create the footer with current stats
-	uploadText := uploadStyle.Render(fmt.Sprintf("↑ %s", formatBandwidth(upload)))
-	downloadText := downloadStyle.Render(fmt.Sprintf("↓ %s", formatBandwidth(download)))
-
-	footer := footerStyle.Render(fmt.Sprintf("%s  %s", uploadText, downloadText))
+	// Create the footer with comprehensive stats
+	footer := m.renderStatusBar(upload, download)
 
 	// Main content is just the chart
 	contentArea := mainContent
@@ -200,6 +189,119 @@ func (m model) View() string {
 	return contentWithFooter
 }
 
+// renderStatusBar creates a comprehensive status bar with all stats
+func (m model) renderStatusBar(upload, download uint64) string {
+	// Update stats
+	m.ui.stats.Update(upload, download)
+
+	// Define styles for the status bar
+	barStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("#1F2937")).
+		Foreground(lipgloss.Color("#E5E7EB")).
+		Padding(0, 1).
+		MarginTop(1).
+		Width(m.width) // Set width to terminal width to ensure full background coverage
+
+	// Current rates with fixed width to prevent layout shift
+	currentUploadStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#F87171")).
+		Bold(true).
+		Width(10).
+		Align(lipgloss.Right)
+	
+	currentDownloadStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#34D399")).
+		Bold(true).
+		Width(10).
+		Align(lipgloss.Right)
+
+	// Peak values with muted styling
+	peakStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#9CA3AF")).
+		Width(11).
+		Align(lipgloss.Right)
+
+	// Total values with subtle styling
+	totalStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#6B7280")).
+		Width(11).
+		Align(lipgloss.Right)
+
+	// Uptime with accent color
+	uptimeStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#60A5FA")).
+		Bold(true)
+
+	// Labels with consistent styling
+	labelStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#D1D5DB")).
+		Faint(true)
+
+	// Format values with fixed width
+	currentUpload := currentUploadStyle.Render(formatBandwidth(upload))
+	currentDownload := currentDownloadStyle.Render(formatBandwidth(download))
+	peakUpload := peakStyle.Render(formatBandwidth(m.ui.stats.PeakUpload))
+	peakDownload := peakStyle.Render(formatBandwidth(m.ui.stats.PeakDownload))
+	totalUpload := totalStyle.Render(formatBytes(m.ui.stats.TotalUpload))
+	totalDownload := totalStyle.Render(formatBytes(m.ui.stats.TotalDownload))
+	uptime := uptimeStyle.Render(formatDuration(m.ui.stats.GetUptime()))
+
+	// Create more compact sections
+	currentSection := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		labelStyle.Render("↑"),
+		currentUpload,
+		labelStyle.Render(" ↓"),
+		currentDownload,
+	)
+
+	peakSection := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		labelStyle.Render("Peak: ↑"),
+		peakUpload,
+		labelStyle.Render(" ↓"),
+		peakDownload,
+	)
+
+	totalSection := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		labelStyle.Render("Total: ↑"),
+		totalUpload,
+		labelStyle.Render(" ↓"),
+		totalDownload,
+	)
+
+	uptimeSection := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		labelStyle.Render("Up: "),
+		uptime,
+	)
+
+	// Join all sections with compact separators
+	separatorStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#374151")).
+		Faint(true)
+
+	// Create a more compact layout
+	statusContent := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		currentSection,
+		separatorStyle.Render(" │ "),
+		peakSection,
+		separatorStyle.Render(" │ "),
+		totalSection,
+		separatorStyle.Render(" │ "),
+		uptimeSection,
+	)
+
+	// Create a content wrapper that fills the full width
+	contentWrapper := lipgloss.NewStyle().
+		Width(m.width).
+		Align(lipgloss.Left)
+
+	return barStyle.Render(contentWrapper.Render(statusContent))
+}
+
 func main() {
 	// Create a beautiful app with enhanced features
 	p := tea.NewProgram(
@@ -210,25 +312,6 @@ func main() {
 	)
 
 	if _, err := p.Run(); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func formatBandwidth(bps uint64) string {
-	const (
-		KB = 1024
-		MB = KB * 1024
-		GB = MB * 1024
-	)
-
-	switch {
-	case bps >= GB:
-		return fmt.Sprintf("%.2f GB/s", float64(bps)/GB)
-	case bps >= MB:
-		return fmt.Sprintf("%.2f MB/s", float64(bps)/MB)
-	case bps >= KB:
-		return fmt.Sprintf("%.2f KB/s", float64(bps)/KB)
-	default:
-		return fmt.Sprintf("%d B/s", bps)
+		panic(err)
 	}
 }
