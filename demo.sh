@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# Demo script for Peaks bandwidth monitor
+echo "🏔️ Welcome to Peaks - Beautiful Terminal Bandwidth Monitor!"
+echo ""
+echo "This demo will show you the features of Peaks:"
+echo ""
+echo "✨ Features:"
+echo "  - Real-time bandwidth monitoring with braille charts"
+echo "  - Beautiful TUI with Bubble Tea and Lip Gloss"
+echo "  - Cross-platform support (Linux, macOS, Windows)"
+echo "  - Color-coded traffic (Red=Upload, Green=Download, Yellow=Overlap)"
+echo "  - Interactive controls (pause, reset, stats, help)"
+echo ""
+echo "🎮 Controls:"
+echo "  - q/Ctrl+C: Quit"
+echo "  - p/Space: Pause/Resume"
+echo "  - r: Reset chart"
+echo "  - s: Toggle stats panel"
+echo "  - ?: Toggle help"
+echo ""
+echo "🚀 To run Peaks:"
+echo "  ./peaks"
+echo ""
+echo "Or use the Makefile:"
+echo "  make run"
+echo ""
+echo "📊 The tool will display:"
+echo "  - Live braille chart of network traffic"
+echo "  - Current upload/download rates"
+echo "  - Optional statistics panel"
+echo "  - Beautiful color-coded interface"
+echo ""
+echo "Press any key to see the actual bandwidth monitor..."
+read -n 1 -s
+echo ""
+echo "Starting Peaks bandwidth monitor..."
+echo "(Press 'q' to quit when done)"
+echo ""
+
+# Launch the actual application
+./peaks
