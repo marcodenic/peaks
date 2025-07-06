@@ -64,13 +64,13 @@ func TestUIComponents(t *testing.T) {
 		t.Fatal("Failed to create UI components")
 	}
 
-	// Test stats rendering
-	stats := ui.RenderStats(1024, 2048)
-	if stats == "" {
-		t.Fatal("Stats rendered empty string")
+	// Test help rendering
+	help := ui.RenderHelp()
+	if help == "" {
+		t.Fatal("Help rendered empty string")
 	}
 
-	t.Logf("Stats rendered successfully: %d characters", len(stats))
+	t.Logf("Help rendered successfully: %d characters", len(help))
 }
 
 func TestTickMsg(t *testing.T) {

@@ -7,7 +7,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -19,19 +18,20 @@ import (
 type KeyMap struct {
 	Reset key.Binding
 	Pause key.Binding
+	Stats key.Binding
 	Help  key.Binding
 	Quit  key.Binding
 }
 
 // ShortHelp returns keybindings to be shown in the mini help view
 func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Help, k.Reset, k.Pause, k.Quit}
+	return []key.Binding{k.Help, k.Reset, k.Pause, k.Stats, k.Quit}
 }
 
 // FullHelp returns keybindings for the expanded help view
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Reset, k.Pause, k.Help, k.Quit},
+		{k.Reset, k.Pause, k.Stats, k.Help, k.Quit},
 	}
 }
 
@@ -43,6 +43,10 @@ var keys = KeyMap{
 	Pause: key.NewBinding(
 		key.WithKeys("p", " "),
 		key.WithHelp("p/space", "pause/resume"),
+	),
+	Stats: key.NewBinding(
+		key.WithKeys("s"),
+		key.WithHelp("s", "toggle statusbar"),
 	),
 	Help: key.NewBinding(
 		key.WithKeys("?"),
@@ -113,59 +117,6 @@ func NewUIComponents() *UIComponents {
 		help:  h,
 		stats: NewStats(),
 	}
-}
-
-// RenderStats creates a beautiful stats display
-func (ui *UIComponents) RenderStats(upload, download uint64) string {
-	ui.stats.Update(upload, download)
-
-	statStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#E5E7EB")).
-		Background(lipgloss.Color("#1F2937")).
-		Padding(1, 2).
-		Margin(0, 1).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#374151"))
-
-	labelStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#9CA3AF")).
-		Bold(true)
-
-	valueStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#F9FAFB")).
-		Bold(true)
-
-	uptime := ui.stats.GetUptime()
-
-	lines := []string{
-		lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			labelStyle.Render("Uptime: "),
-			valueStyle.Render(formatDuration(uptime)),
-		),
-		lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			labelStyle.Render("Peak ↑: "),
-			valueStyle.Render(formatBandwidth(ui.stats.PeakUpload)),
-		),
-		lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			labelStyle.Render("Peak ↓: "),
-			valueStyle.Render(formatBandwidth(ui.stats.PeakDownload)),
-		),
-		lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			labelStyle.Render("Total ↑: "),
-			valueStyle.Render(formatBytes(ui.stats.TotalUpload)),
-		),
-		lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			labelStyle.Render("Total ↓: "),
-			valueStyle.Render(formatBytes(ui.stats.TotalDownload)),
-		),
-	}
-
-	return statStyle.Render(strings.Join(lines, "\n"))
 }
 
 // RenderHelp creates a beautiful help display

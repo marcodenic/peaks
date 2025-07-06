@@ -68,6 +68,8 @@ type model struct {
 	currentDownload uint64
 	// Optimization: reduce UI update frequency
 	updateCounter int
+	// UI state
+	showStatusbar bool
 }
 
 // initialModel creates and initializes the application model
@@ -101,10 +103,11 @@ func initialModel() model {
 	)
 
 	return model{
-		monitor:   monitor,
-		chart:     chart,
-		ui:        ui,
-		statusbar: sb,
+		monitor:       monitor,
+		chart:         chart,
+		ui:            ui,
+		statusbar:     sb,
+		showStatusbar: true, // Show statusbar by default
 	}
 }
 
@@ -142,6 +145,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case key.Matches(msg, keys.Pause):
 			m.paused = !m.paused
+			return m, nil
+		case key.Matches(msg, keys.Stats):
+			m.showStatusbar = !m.showStatusbar
 			return m, nil
 		case key.Matches(msg, keys.Help):
 			m.showHelp = !m.showHelp
@@ -190,45 +196,44 @@ func (m model) View() string {
 	// Create the chart with full height
 	chartContent := m.chart.Render()
 
-	// Create the main display area (just the chart)
-	mainContent := chartContent
-
 	// Create the footer with comprehensive stats using teacup statusbar
 	m.ui.stats.Update(upload, download)
 
-	// Format current rates with truly fixed width to prevent jumping
-	// NO STYLING HERE - use plain text with fixed width formatting
-	uploadFormatted := formatBandwidth(upload)
-	downloadFormatted := formatBandwidth(download)
+	// Create the main display area (just the chart)
+	mainContent := chartContent
 
-	// Use fixed width formatting WITHOUT any styling to prevent jumping
-	currentRates := fmt.Sprintf("↑%11s ↓%11s", uploadFormatted, downloadFormatted)
+	// Conditionally add statusbar
+	var contentWithFooter string
+	if m.showStatusbar {
+		// Format current rates with truly fixed width to prevent jumping
+		uploadFormatted := formatBandwidth(upload)
+		downloadFormatted := formatBandwidth(download)
+		currentRates := fmt.Sprintf("↑%11s ↓%11s", uploadFormatted, downloadFormatted)
 
-	// Format peak values with fixed formatting
-	peakUploadFormatted := formatBandwidth(m.ui.stats.PeakUpload)
-	peakDownloadFormatted := formatBandwidth(m.ui.stats.PeakDownload)
-	peakValues := fmt.Sprintf("Peak: ↑%9s ↓%9s", peakUploadFormatted, peakDownloadFormatted)
+		// Format peak values with fixed formatting
+		peakUploadFormatted := formatBandwidth(m.ui.stats.PeakUpload)
+		peakDownloadFormatted := formatBandwidth(m.ui.stats.PeakDownload)
+		peakValues := fmt.Sprintf("Peak: ↑%9s ↓%9s", peakUploadFormatted, peakDownloadFormatted)
 
-	// Format totals with fixed formatting
-	totalUploadFormatted := formatBytes(m.ui.stats.TotalUpload)
-	totalDownloadFormatted := formatBytes(m.ui.stats.TotalDownload)
-	totalValues := fmt.Sprintf("Total: ↑%8s ↓%8s", totalUploadFormatted, totalDownloadFormatted)
+		// Format totals with fixed formatting
+		totalUploadFormatted := formatBytes(m.ui.stats.TotalUpload)
+		totalDownloadFormatted := formatBytes(m.ui.stats.TotalDownload)
+		totalValues := fmt.Sprintf("Total: ↑%8s ↓%8s", totalUploadFormatted, totalDownloadFormatted)
 
-	// Format uptime
-	uptimeValue := "Up: " + formatDuration(m.ui.stats.GetUptime())
+		// Format uptime
+		uptimeValue := "Up: " + formatDuration(m.ui.stats.GetUptime())
 
-	m.statusbar.SetContent(currentRates, peakValues, totalValues, uptimeValue)
-	footer := m.statusbar.View()
+		m.statusbar.SetContent(currentRates, peakValues, totalValues, uptimeValue)
+		footer := m.statusbar.View()
 
-	// Main content is just the chart
-	contentArea := mainContent
-
-	// Add footer
-	contentWithFooter := lipgloss.JoinVertical(
-		lipgloss.Left,
-		contentArea,
-		footer,
-	)
+		contentWithFooter = lipgloss.JoinVertical(
+			lipgloss.Left,
+			mainContent,
+			footer,
+		)
+	} else {
+		contentWithFooter = mainContent
+	}
 
 	// Add help if shown
 	if m.showHelp {
@@ -251,7 +256,7 @@ func (m model) View() string {
 			Foreground(lipgloss.Color("#6B7280")).
 			Faint(true)
 
-		miniHelp := miniHelpStyle.Render("Press '?' for help • 'p' to pause • 's' to toggle stats • 'r' to reset • 'q' to quit")
+		miniHelp := miniHelpStyle.Render("Press '?' for help • 'p' to pause • 's' to toggle statusbar • 'r' to reset • 'q' to quit")
 		contentWithFooter = lipgloss.JoinVertical(
 			lipgloss.Left,
 			contentWithFooter,
