@@ -1,3 +1,25 @@
+// Package main implements Peaks, a beautiful terminal-based bandwidth monitoring tool.
+//
+// Peaks provides real-time network bandwidth monitoring with high-resolution braille charts,
+// built using the Charm TUI ecosystem for a modern terminal interface.
+//
+// Features:
+//   - Real-time bandwidth monitoring with split-axis braille charts
+//   - Cross-platform support (Linux, macOS, Windows)
+//   - Interactive controls for pause, reset, and help
+//   - Beautiful color-coded interface with traffic separation
+//   - Detailed statistics tracking
+//
+// Usage:
+//
+//	peaks
+//
+// Controls:
+//
+//	q/Ctrl+C: Quit
+//	p/Space:  Pause/Resume
+//	r:        Reset chart and statistics
+//	?:        Toggle help
 package main
 
 import (
@@ -10,21 +32,24 @@ import (
 	"github.com/mistakenelf/teacup/statusbar"
 )
 
-var (
+const (
 	// Update frequency for bandwidth monitoring
 	updateInterval = 500 * time.Millisecond
-	// Maximum data points to keep for the chart
-	maxDataPoints = 120 // 60 seconds of history at 2 FPS
+	// Maximum data points to keep for the chart (60 seconds at 2 FPS)
+	maxDataPoints = 120
 )
 
+// tickMsg represents a tick message for updating the display
 type tickMsg time.Time
 
+// tickCmd creates a command that sends tick messages at regular intervals
 func tickCmd() tea.Cmd {
 	return tea.Tick(updateInterval, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
 
+// model represents the application state for the Bubble Tea framework
 type model struct {
 	monitor   *BandwidthMonitor
 	chart     *BrailleChart
@@ -36,10 +61,9 @@ type model struct {
 	quitting  bool
 	paused    bool
 	showHelp  bool
-	showStats bool
-	lastTick  time.Time
 }
 
+// initialModel creates and initializes the application model
 func initialModel() model {
 	monitor := NewBandwidthMonitor()
 	chart := NewBrailleChart(maxDataPoints)
@@ -74,11 +98,10 @@ func initialModel() model {
 		chart:     chart,
 		ui:        ui,
 		statusbar: sb,
-		lastTick:  time.Now(),
-		showStats: false, // Start with stats disabled
 	}
 }
 
+// Init initializes the model and returns initial commands
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		tickCmd(),
@@ -86,6 +109,7 @@ func (m model) Init() tea.Cmd {
 	)
 }
 
+// Update handles messages and updates the model state
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -115,9 +139,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Help):
 			m.showHelp = !m.showHelp
 			return m, nil
-		case msg.String() == "s":
-			m.showStats = !m.showStats
-			return m, nil
 		}
 
 	case tickMsg:
@@ -129,7 +150,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ui.stats.Update(upload, download)
 			}
 		}
-		m.lastTick = time.Time(msg)
 		return m, tickCmd()
 
 	case tea.QuitMsg:
@@ -140,6 +160,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// View renders the application interface
 func (m model) View() string {
 	if !m.ready {
 		return "Initializing beautiful bandwidth monitor..."
@@ -232,13 +253,14 @@ func (m model) View() string {
 	return contentWithFooter
 }
 
+// main initializes and runs the Peaks bandwidth monitoring application
 func main() {
-	// Create a beautiful app with enhanced features
+	// Create the application with enhanced features
 	p := tea.NewProgram(
 		initialModel(),
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
-		tea.WithFPS(15), // Smooth but efficient
+		tea.WithFPS(15), // Smooth but efficient rendering
 	)
 
 	if _, err := p.Run(); err != nil {

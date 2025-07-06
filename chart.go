@@ -1,9 +1,22 @@
+// Package main - braille chart rendering functionality
+//
+// This file implements high-resolution braille chart rendering for terminal displays.
+// It creates split-axis charts with upload data below and download data above a
+// central axis, using Unicode braille characters for detailed visualization.
 package main
 
 import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+)
+
+const (
+	// Chart configuration constants
+	minChartHeight = 8                 // Minimum chart height in rows
+	brailleDots    = 4                 // Braille has 4 vertical dots per character
+	brailleBase    = 0x2800            // Base braille character code
+	maxScaleLimit  = 100 * 1024 * 1024 // 100MB/s maximum scale
 )
 
 var (
@@ -43,7 +56,7 @@ func NewBrailleChart(maxPoints int) *BrailleChart {
 		uploadData:   make([]uint64, 0, maxPoints),
 		downloadData: make([]uint64, 0, maxPoints),
 		maxValue:     1024, // Start with 1KB minimum scale
-		minHeight:    8,    // Minimum chart height in rows
+		minHeight:    minChartHeight,
 	}
 }
 
@@ -109,8 +122,8 @@ func (bc *BrailleChart) updateMaxValue() {
 	}
 
 	// Reasonable bounds
-	if bc.maxValue > 100*1024*1024 { // 100MB/s max
-		bc.maxValue = 100 * 1024 * 1024
+	if bc.maxValue > maxScaleLimit {
+		bc.maxValue = maxScaleLimit
 	}
 }
 
@@ -144,8 +157,8 @@ func (bc *BrailleChart) Render() string {
 func (bc *BrailleChart) renderEmptyChart() string {
 	// Just return empty space - don't show anything until data arrives
 	chartHeight := bc.height - 3
-	if chartHeight < 8 {
-		chartHeight = 8
+	if chartHeight < minChartHeight {
+		chartHeight = minChartHeight
 	}
 
 	// Return empty lines to fill the space
@@ -165,10 +178,10 @@ func (bc *BrailleChart) renderBrailleChart(width int) string {
 
 	// Chart dimensions - use the dynamic height more aggressively
 	chartHeight := bc.height - 3 // Reserve space for footer and help, but use most of the height
-	if chartHeight < 8 {         // Minimum 8 lines for a decent chart
-		chartHeight = 8
+	if chartHeight < minChartHeight {
+		chartHeight = minChartHeight
 	}
-	dotsPerLine := 4                         // Braille has 4 vertical dots per character
+	dotsPerLine := brailleDots               // Braille has 4 vertical dots per character
 	totalHeight := chartHeight * dotsPerLine // Total vertical resolution
 	halfHeight := totalHeight / 2            // Split point for upload/download
 
@@ -219,7 +232,7 @@ func (bc *BrailleChart) renderBrailleChart(width int) string {
 // createBrailleCharForLineSplit creates a braille character for a specific line with split axis
 func (bc *BrailleChart) createBrailleCharForLineSplit(line, uploadHeight, downloadHeight, halfHeight, dotsPerLine int) string {
 	// Base braille character
-	base := 0x2800
+	base := brailleBase
 	var dots int
 
 	hasUpload := false

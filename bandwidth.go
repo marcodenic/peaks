@@ -1,3 +1,7 @@
+// Package main - bandwidth monitoring functionality
+//
+// This file provides cross-platform bandwidth monitoring capabilities
+// using the gopsutil library to gather network interface statistics.
 package main
 
 import (
@@ -99,11 +103,4 @@ func (bm *BandwidthMonitor) updateStats() error {
 	bm.lastTime = currentTime
 
 	return nil
-}
-
-// GetPeakRates returns the maximum observed rates (for scaling)
-func (bm *BandwidthMonitor) GetPeakRates() (uint64, uint64) {
-	// This could be enhanced to track historical peaks
-	// For now, return current rates
-	return bm.currentRates.Upload, bm.currentRates.Download
 }

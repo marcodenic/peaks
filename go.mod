@@ -1,4 +1,4 @@
-module github.com/marco/peaks
+module github.com/marcodenic/peaks
 
 go 1.23.0
 

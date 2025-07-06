@@ -1,3 +1,8 @@
+// Package main - UI components and formatting utilities
+//
+// This file provides UI components for displaying bandwidth statistics,
+// help information, and various formatting utilities for human-readable
+// display of bandwidth, bytes, and duration values.
 package main
 
 import (

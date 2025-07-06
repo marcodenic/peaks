@@ -1,26 +1,49 @@
-# Makefile for Peaks bandwidth monitor
+# Makefile for Peaks - Beautiful Terminal Bandwidth Monitor
+
+# Application info
+APP_NAME=peaks
+VERSION?=1.0.0
 
 # Build variables
-BINARY_NAME=peaks
-BINARY_UNIX=$(BINARY_NAME)_unix
-BINARY_WINDOWS=$(BINARY_NAME).exe
-BINARY_DARWIN=$(BINARY_NAME)_darwin
+BINARY_NAME=$(APP_NAME)
+BINARY_UNIX=$(APP_NAME)_unix
+BINARY_WINDOWS=$(APP_NAME).exe
+BINARY_DARWIN=$(APP_NAME)_darwin
+
+# Build flags
+LDFLAGS=-ldflags "-s -w -X main.version=$(VERSION)"
+GOFLAGS=-trimpath
+
+.PHONY: build build-all build-linux build-windows build-darwin run test clean deps fmt lint help
+
+# Default target
+help:
+	@echo "Available commands:"
+	@echo "  build        - Build the application"
+	@echo "  build-all    - Build for all platforms"
+	@echo "  run          - Run the application"
+	@echo "  test         - Run tests"
+	@echo "  clean        - Clean build artifacts"
+	@echo "  deps         - Install/update dependencies"
+	@echo "  fmt          - Format code"
+	@echo "  lint         - Run linter (requires golangci-lint)"
+	@echo "  help         - Show this help message"
 
 # Build the project
 build:
-	go build -o $(BINARY_NAME) -v
+	go build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_NAME)
 
 # Build for multiple platforms
 build-all: build-linux build-windows build-darwin
 
 build-linux:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o $(BINARY_UNIX) -v
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_UNIX)
 
 build-windows:
-	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o $(BINARY_WINDOWS) -v
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_WINDOWS)
 
 build-darwin:
-	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o $(BINARY_DARWIN) -v
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_DARWIN)
 
 # Run the application
 run:
@@ -28,15 +51,14 @@ run:
 
 # Test the application
 test:
-	go test -v ./...
+	go test -v -race -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
 
 # Clean build artifacts
 clean:
 	go clean
-	rm -f $(BINARY_NAME)
-	rm -f $(BINARY_UNIX)
-	rm -f $(BINARY_WINDOWS)
-	rm -f $(BINARY_DARWIN)
+	rm -f $(BINARY_NAME) $(BINARY_UNIX) $(BINARY_WINDOWS) $(BINARY_DARWIN)
+	rm -f coverage.out coverage.html
 
 # Install dependencies
 deps:
@@ -47,7 +69,7 @@ deps:
 fmt:
 	go fmt ./...
 
-# Lint code
+# Lint code (requires golangci-lint)
 lint:
 	golangci-lint run
 

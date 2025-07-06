@@ -1,4 +1,44 @@
-# 🏔️ PEAKS - Beautiful Terminal Bandwidth Monitor
+# 🏔️ PEAKS - Beaut## 🚀 Installation
+
+### Prerequisites
+- Go 1.21 or higher
+- A terminal with Unicode and color support
+
+### Quick Install
+
+**Option 1: Build from Source**
+```bash
+git clone https://github.com/marcodenic/peaks
+cd peaks
+go build -o peaks
+./peaks
+```
+
+**Option 2: Using Go Install**
+```bash
+go install github.com/marcodenic/peaks@latest
+peaks
+```
+
+**Option 3: Using Make**
+```bash
+git clone https://github.com/marcodenic/peaks
+cd peaks
+make build
+./peaks
+```
+
+### Cross-Platform Builds
+
+Build for all platforms:
+```bash
+make build-all
+```
+
+This creates binaries for:
+- Linux: `peaks_unix`
+- Windows: `peaks.exe`
+- macOS: `peaks_darwin` Bandwidth Monitor
 
 A modern, real-time bandwidth monitoring tool for your terminal, built with the latest Charm ecosystem tools for a stunning user experience.
 
@@ -25,7 +65,7 @@ A modern, real-time bandwidth monitoring tool for your terminal, built with the 
 
 ### Build from Source
 ```bash
-git clone https://github.com/marco/peaks
+git clone https://github.com/marcodenic/peaks
 cd peaks
 go build -o peaks
 ./peaks
@@ -100,7 +140,48 @@ The tool uses modern terminal colors and should work well with most terminal the
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit issues and pull requests.
+We welcome contributions to Peaks! Please follow these guidelines:
+
+### Development Setup
+
+1. **Fork and Clone**
+   ```bash
+   git clone https://github.com/marcodenic/peaks
+   cd peaks
+   ```
+
+2. **Install Dependencies**
+   ```bash
+   go mod tidy
+   ```
+
+3. **Build and Test**
+   ```bash
+   make build
+   make test
+   ```
+
+### Code Style
+
+- Follow standard Go conventions
+- Run `go fmt` before committing
+- Add tests for new features
+- Update documentation as needed
+
+### Submitting Changes
+
+1. Create a feature branch
+2. Make your changes
+3. Test thoroughly
+4. Submit a pull request
+
+### Reporting Issues
+
+Please use the GitHub issue tracker to report bugs or request features. Include:
+- Your operating system and terminal
+- Go version
+- Steps to reproduce the issue
+- Expected vs actual behavior
 
 ## 📜 License
 
@@ -114,4 +195,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-*Made with ❤️ and lots of ☕ by marco*
+*Made with ❤️ and lots of ☕*
