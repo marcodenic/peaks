@@ -9,6 +9,7 @@ import (
 // BrailleChart creates beautiful braille-based charts for terminal display
 type BrailleChart struct {
 	width        int
+	height       int
 	maxPoints    int
 	uploadData   []uint64
 	downloadData []uint64
@@ -26,6 +27,7 @@ type DataPoint struct {
 func NewBrailleChart(maxPoints int) *BrailleChart {
 	return &BrailleChart{
 		width:        80,
+		height:       20,
 		maxPoints:    maxPoints,
 		uploadData:   make([]uint64, 0, maxPoints),
 		downloadData: make([]uint64, 0, maxPoints),
@@ -39,6 +41,14 @@ func (bc *BrailleChart) SetWidth(width int) {
 	bc.width = width
 	if bc.width < 20 {
 		bc.width = 20
+	}
+}
+
+// SetHeight sets the chart height
+func (bc *BrailleChart) SetHeight(height int) {
+	bc.height = height
+	if bc.height < bc.minHeight {
+		bc.height = bc.minHeight
 	}
 }
 
@@ -106,8 +116,8 @@ func (bc *BrailleChart) Render() string {
 		return bc.renderEmptyChart()
 	}
 
-	// Calculate dimensions
-	chartWidth := bc.width - 10 // Leave space for labels
+	// Calculate dimensions - use the full available width
+	chartWidth := bc.width
 	if chartWidth < 20 {
 		chartWidth = 20
 	}
@@ -115,37 +125,8 @@ func (bc *BrailleChart) Render() string {
 	// Create the chart
 	chart := bc.renderBrailleChart(chartWidth)
 
-	// Add horizontal axis line in the middle
-	axisStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#6B7280")).
-		Faint(true)
-	axis := axisStyle.Render(strings.Repeat("━", chartWidth))
-
-	// Split the chart at the middle to insert the axis
-	chartLines := strings.Split(chart, "\n")
-	if len(chartLines) >= 3 {
-		// Insert axis in the middle (between line 2 and 3 for a 6-line chart)
-		midPoint := len(chartLines) / 2
-		var result []string
-		result = append(result, chartLines[:midPoint]...)
-		result = append(result, axis)
-		result = append(result, chartLines[midPoint:]...)
-		chart = strings.Join(result, "\n")
-	}
-
-	// Add scale information
-	scale := bc.renderScale()
-
-	// Add legend
-	legend := bc.renderLegend()
-
-	// Combine everything
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		legend,
-		chart,
-		scale,
-	)
+	// Return just the chart without legend, axis, or scale
+	return chart
 }
 
 // renderEmptyChart renders a placeholder when no data is available
@@ -160,16 +141,26 @@ func (bc *BrailleChart) renderEmptyChart() string {
 		width = 40
 	}
 
+	// Calculate the number of lines to fill the height
+	chartHeight := bc.height - 3
+	if chartHeight < 8 {
+		chartHeight = 8
+	}
+
 	var lines []string
 	lines = append(lines, emptyStyle.Render("Collecting network data..."))
 
-	// Add some placeholder braille characters
-	placeholder := strings.Repeat("⠤", width/4) + strings.Repeat("⠤", width/4) + strings.Repeat("⠤", width/4) + strings.Repeat("⠤", width/4)
-	lines = append(lines, strings.Repeat("⠀", width))
-	lines = append(lines, strings.Repeat("⠀", width))
-	lines = append(lines, placeholder[:width])
-	lines = append(lines, strings.Repeat("⠀", width))
-	lines = append(lines, strings.Repeat("⠀", width))
+	// Fill the remaining height with placeholder braille characters
+	for i := 1; i < chartHeight; i++ {
+		if i == chartHeight/2 {
+			// Add placeholder braille in the middle
+			placeholder := strings.Repeat("⠤", width/4) + strings.Repeat("⠤", width/4) + strings.Repeat("⠤", width/4) + strings.Repeat("⠤", width/4)
+			lines = append(lines, placeholder[:width])
+		} else {
+			lines = append(lines, strings.Repeat("⠀", width))
+		}
+	}
+
 	lines = append(lines, emptyStyle.Render("Chart will appear here shortly"))
 
 	return strings.Join(lines, "\n")
@@ -181,8 +172,11 @@ func (bc *BrailleChart) renderBrailleChart(width int) string {
 		return bc.renderEmptyChart()
 	}
 
-	// Chart dimensions
-	chartHeight := 6                         // Number of text lines for the chart
+	// Chart dimensions - use the dynamic height more aggressively
+	chartHeight := bc.height - 3            // Reserve space for footer and help, but use most of the height
+	if chartHeight < 8 {                    // Minimum 8 lines for a decent chart
+		chartHeight = 8
+	}
 	dotsPerLine := 4                         // Braille has 4 vertical dots per character
 	totalHeight := chartHeight * dotsPerLine // Total vertical resolution
 	halfHeight := totalHeight / 2            // Split point for upload/download
@@ -325,36 +319,4 @@ func (bc *BrailleChart) createBrailleCharForLineSplit(line, uploadHeight, downlo
 	}
 
 	return charStr
-}
-
-// renderScale creates a scale indicator for the split-axis chart
-func (bc *BrailleChart) renderScale() string {
-	scaleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#9CA3AF")).
-		Faint(true)
-
-	return scaleStyle.Render(
-		"Scale: ±" + formatBandwidth(bc.maxValue) + " (download above axis, upload below)",
-	)
-}
-
-// renderLegend creates a legend for the split-axis chart
-func (bc *BrailleChart) renderLegend() string {
-	legendStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#D1D5DB")).
-		Background(lipgloss.Color("#1F2937")).
-		Padding(0, 1)
-
-	upload := uploadStyle.Render("⠈ Upload (below)")
-	download := downloadStyle.Render("⠈ Download (above)")
-	axis := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#9CA3AF")).
-		Render("━ Axis")
-
-	return legendStyle.Render(
-		lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			download, "  ", axis, "  ", upload,
-		),
-	)
 }

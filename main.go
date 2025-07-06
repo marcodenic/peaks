@@ -19,13 +19,6 @@ const (
 
 var (
 	// Global styles using the latest Lip Gloss features
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#FAFAFA")).
-			Background(lipgloss.Color("#7C3AED")).
-			Padding(0, 1).
-			MarginBottom(1)
-
 	uploadStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#F87171")). // Red for upload
 			Bold(true)
@@ -39,11 +32,6 @@ var (
 			Background(lipgloss.Color("#374151")).
 			Padding(0, 1).
 			MarginTop(1)
-
-	borderStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#7C3AED")).
-			Padding(1)
 )
 
 type tickMsg time.Time
@@ -78,7 +66,7 @@ func initialModel() model {
 		chart:     chart,
 		ui:        ui,
 		lastTick:  time.Now(),
-		showStats: true,
+		showStats: false, // Start with stats disabled
 	}
 }
 
@@ -95,7 +83,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.ready = true
-		m.chart.SetWidth(msg.Width - 20) // Account for border padding and stats
+		// Set chart width to fit terminal width with minimal padding
+		m.chart.SetWidth(msg.Width - 2) // Account for minimal padding
+		// Set chart height to fill most of the terminal height - be more aggressive
+		m.chart.SetHeight(msg.Height - 2) // Account for footer and help text (reduced from 4 to 2)
 		return m, nil
 
 	case tea.KeyMsg:
@@ -154,32 +145,11 @@ func (m model) View() string {
 	// Get current rates for display
 	upload, download, _ := m.monitor.GetCurrentRates()
 
-	// Build the main content
-	title := titleStyle.Render("🏔️ PEAKS - Real-time Bandwidth Monitor")
-
-	// Status indicator
-	statusStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#10B981")).
-		Bold(true)
-
-	var statusText string
-	if m.paused {
-		statusText = statusStyle.Foreground(lipgloss.Color("#F59E0B")).Render("⏸ PAUSED")
-	} else {
-		statusText = statusStyle.Render("🔴 LIVE")
-	}
-
-	// Create the chart
+	// Create the chart with full height
 	chartContent := m.chart.Render()
 
-	// Create the main display area
-	mainContent := lipgloss.JoinVertical(
-		lipgloss.Left,
-		title,
-		statusText,
-		"",
-		chartContent,
-	)
+	// Create the main display area (just the chart)
+	mainContent := chartContent
 
 	// Create the footer with current stats
 	uploadText := uploadStyle.Render(fmt.Sprintf("↑ %s", formatBandwidth(upload)))
@@ -187,23 +157,8 @@ func (m model) View() string {
 
 	footer := footerStyle.Render(fmt.Sprintf("%s  %s", uploadText, downloadText))
 
-	// Create the right panel with stats (if enabled)
-	var rightPanel string
-	if m.showStats {
-		rightPanel = m.ui.RenderStats(upload, download)
-	}
-
-	// Combine main content and right panel
-	var contentArea string
-	if m.showStats {
-		contentArea = lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			mainContent,
-			rightPanel,
-		)
-	} else {
-		contentArea = mainContent
-	}
+	// Main content is just the chart
+	contentArea := mainContent
 
 	// Add footer
 	contentWithFooter := lipgloss.JoinVertical(
@@ -241,15 +196,8 @@ func (m model) View() string {
 		)
 	}
 
-	// Add border and center
-	bordered := borderStyle.Render(contentWithFooter)
-
-	// Center the content
-	return lipgloss.Place(
-		m.width, m.height,
-		lipgloss.Center, lipgloss.Center,
-		bordered,
-	)
+	// Return the content without centering to fill the terminal
+	return contentWithFooter
 }
 
 func main() {
