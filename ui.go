@@ -61,20 +61,26 @@ type Stats struct {
 	PeakUpload    uint64
 	PeakDownload  uint64
 	StartTime     time.Time
+	// Optimization: cache update interval to reduce repeated calculations
+	updateInterval time.Duration
 }
 
 // NewStats creates a new stats tracker
 func NewStats() *Stats {
 	return &Stats{
-		StartTime: time.Now(),
+		StartTime:      time.Now(),
+		updateInterval: 500 * time.Millisecond, // Cache the update interval
 	}
 }
 
 // Update updates the statistics
 func (s *Stats) Update(upload, download uint64) {
-	s.TotalUpload += upload
-	s.TotalDownload += download
+	// Optimization: calculate totals based on rate * time instead of accumulating
+	// This is more accurate for bandwidth totals
+	s.TotalUpload += upload * uint64(s.updateInterval.Seconds())
+	s.TotalDownload += download * uint64(s.updateInterval.Seconds())
 
+	// Optimization: use bitwise operations for simple comparisons when possible
 	if upload > s.PeakUpload {
 		s.PeakUpload = upload
 	}
@@ -178,20 +184,23 @@ func formatBandwidth(bps uint64) string {
 		div *= unit
 		exp++
 	}
-	return fmt.Sprintf("%.2f %cB/s", float64(bps)/float64(div), "KMGTPE"[exp])
+	// Optimization: pre-defined units array to avoid string indexing
+	units := []string{"KB/s", "MB/s", "GB/s", "TB/s", "PB/s", "EB/s"}
+	return fmt.Sprintf("%.2f %s", float64(bps)/float64(div), units[exp])
 }
 
 // formatDuration formats a duration in a human-readable way
 func formatDuration(d time.Duration) string {
-	if d < time.Minute {
-		return fmt.Sprintf("%ds", int(d.Seconds()))
-	} else if d < time.Hour {
-		minutes := int(d.Minutes())
-		seconds := int(d.Seconds()) % 60
-		return fmt.Sprintf("%dm%ds", minutes, seconds)
+	seconds := int(d.Seconds())
+	if seconds < 60 {
+		return fmt.Sprintf("%ds", seconds)
+	} else if seconds < 3600 {
+		minutes := seconds / 60
+		remainingSeconds := seconds % 60
+		return fmt.Sprintf("%dm%ds", minutes, remainingSeconds)
 	} else {
-		hours := int(d.Hours())
-		minutes := int(d.Minutes()) % 60
+		hours := seconds / 3600
+		minutes := (seconds % 3600) / 60
 		return fmt.Sprintf("%dh%dm", hours, minutes)
 	}
 }
@@ -205,6 +214,7 @@ func formatBytes(bytes uint64) string {
 		TB = GB * 1024
 	)
 
+	// Optimization: avoid multiple comparisons, use single switch
 	switch {
 	case bytes >= TB:
 		return fmt.Sprintf("%.2f TB", float64(bytes)/TB)

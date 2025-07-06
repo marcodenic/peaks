@@ -37,6 +37,8 @@ const (
 	updateInterval = 500 * time.Millisecond
 	// Maximum data points to keep for the chart (60 seconds at 2 FPS)
 	maxDataPoints = 120
+	// Optimization: reduce FPS to save CPU while maintaining smooth experience
+	targetFPS = 10
 )
 
 // tickMsg represents a tick message for updating the display
@@ -260,7 +262,7 @@ func main() {
 		initialModel(),
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
-		tea.WithFPS(15), // Smooth but efficient rendering
+		tea.WithFPS(targetFPS), // Optimized FPS for efficiency
 	)
 
 	if _, err := p.Run(); err != nil {

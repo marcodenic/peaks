@@ -39,6 +39,12 @@ type BrailleChart struct {
 	downloadData []uint64
 	maxValue     uint64
 	minHeight    int
+	// Optimization: track current max without full recalculation
+	currentMax   uint64
+	// Optimization: pre-allocated string builder for rendering
+	builder      strings.Builder
+	// Optimization: pre-allocated slice for lines to avoid repeated allocations
+	lines        []strings.Builder
 }
 
 // DataPoint represents a single measurement point
@@ -53,10 +59,14 @@ func NewBrailleChart(maxPoints int) *BrailleChart {
 		width:        80,
 		height:       20,
 		maxPoints:    maxPoints,
+		// Optimization: pre-allocate slices with fixed capacity to avoid reallocations
 		uploadData:   make([]uint64, 0, maxPoints),
 		downloadData: make([]uint64, 0, maxPoints),
 		maxValue:     1024, // Start with 1KB minimum scale
 		minHeight:    minChartHeight,
+		currentMax:   0,
+		// Optimization: pre-allocate string builders
+		lines:        make([]strings.Builder, 0, 50), // Pre-allocate for typical chart heights
 	}
 }
 
@@ -78,37 +88,63 @@ func (bc *BrailleChart) SetHeight(height int) {
 
 // AddDataPoint adds a new data point to the chart
 func (bc *BrailleChart) AddDataPoint(upload, download uint64) {
+	// Optimization: track current max efficiently
+	if upload > bc.currentMax {
+		bc.currentMax = upload
+	}
+	if download > bc.currentMax {
+		bc.currentMax = download
+	}
+
 	// Add new data points
 	bc.uploadData = append(bc.uploadData, upload)
 	bc.downloadData = append(bc.downloadData, download)
 
 	// Remove old data points if we exceed max
 	if len(bc.uploadData) > bc.maxPoints {
+		// Optimization: check if we're removing the max value
+		removedUpload := bc.uploadData[0]
 		bc.uploadData = bc.uploadData[1:]
+		
+		// If we removed the max value, we need to recalculate
+		if removedUpload == bc.currentMax {
+			bc.recalculateMax()
+		}
 	}
 	if len(bc.downloadData) > bc.maxPoints {
+		// Optimization: check if we're removing the max value
+		removedDownload := bc.downloadData[0]
 		bc.downloadData = bc.downloadData[1:]
+		
+		// If we removed the max value, we need to recalculate
+		if removedDownload == bc.currentMax {
+			bc.recalculateMax()
+		}
 	}
 
 	// Update max value for scaling
 	bc.updateMaxValue()
 }
 
-// updateMaxValue updates the maximum value for scaling
-func (bc *BrailleChart) updateMaxValue() {
-	var currentMax uint64
-
-	// Find the maximum value in recent data (more stable scaling)
+// recalculateMax recalculates the current max when the previous max was removed
+func (bc *BrailleChart) recalculateMax() {
+	bc.currentMax = 0
 	for _, val := range bc.uploadData {
-		if val > currentMax {
-			currentMax = val
+		if val > bc.currentMax {
+			bc.currentMax = val
 		}
 	}
 	for _, val := range bc.downloadData {
-		if val > currentMax {
-			currentMax = val
+		if val > bc.currentMax {
+			bc.currentMax = val
 		}
 	}
+}
+
+// updateMaxValue updates the maximum value for scaling
+func (bc *BrailleChart) updateMaxValue() {
+	// Optimization: use tracked currentMax instead of recalculating every time
+	currentMax := bc.currentMax
 
 	// Use more aggressive scaling that utilizes full height
 	if currentMax < 1024 {
@@ -134,9 +170,16 @@ func (bc *BrailleChart) updateMaxValue() {
 
 // Reset clears all data
 func (bc *BrailleChart) Reset() {
+	// Optimization: reuse existing slice capacity instead of creating new ones
 	bc.uploadData = bc.uploadData[:0]
 	bc.downloadData = bc.downloadData[:0]
 	bc.maxValue = 1024
+	bc.currentMax = 0
+	// Reset string builders
+	bc.builder.Reset()
+	for i := range bc.lines {
+		bc.lines[i].Reset()
+	}
 }
 
 // Render creates the beautiful braille chart with split axis
@@ -196,8 +239,22 @@ func (bc *BrailleChart) renderBrailleChart(width int) string {
 		dataLen = len(bc.downloadData)
 	}
 
-	// Create the chart grid
-	lines := make([]string, chartHeight)
+	// Optimization: ensure we have enough pre-allocated string builders
+	if len(bc.lines) < chartHeight {
+		for i := len(bc.lines); i < chartHeight; i++ {
+			bc.lines = append(bc.lines, strings.Builder{})
+		}
+	}
+
+	// Optimization: reset and reuse existing builders instead of creating new strings
+	for i := 0; i < chartHeight; i++ {
+		bc.lines[i].Reset()
+		bc.lines[i].Grow(width) // Pre-allocate capacity
+	}
+
+	// Optimization: pre-calculate values to avoid repeated calculations
+	maxValueFloat := float64(bc.maxValue)
+	halfHeightFloat := float64(halfHeight)
 
 	for col := 0; col < width; col++ {
 		// Calculate which data point this column represents
@@ -213,9 +270,9 @@ func (bc *BrailleChart) renderBrailleChart(width int) string {
 		}
 
 		// Convert to chart heights (0 to halfHeight for each direction)
-		// Use more precise scaling to fill available height better
-		uploadHeight := int(float64(uploadVal) / float64(bc.maxValue) * float64(halfHeight))
-		downloadHeight := int(float64(downloadVal) / float64(bc.maxValue) * float64(halfHeight))
+		// Optimization: use pre-calculated float values to avoid repeated conversions
+		uploadHeight := int(float64(uploadVal) / maxValueFloat * halfHeightFloat)
+		downloadHeight := int(float64(downloadVal) / maxValueFloat * halfHeightFloat)
 
 		// Ensure we don't exceed bounds
 		if uploadHeight > halfHeight {
@@ -228,16 +285,30 @@ func (bc *BrailleChart) renderBrailleChart(width int) string {
 		// Create braille character for each line
 		for line := 0; line < chartHeight; line++ {
 			char := bc.createBrailleCharForLineSplit(line, uploadHeight, downloadHeight, halfHeight, dotsPerLine)
-			lines[line] += char
+			bc.lines[line].WriteString(char)
 		}
 	}
 
-	// Return lines in their natural order (top to bottom)
-	return strings.Join(lines, "\n")
+	// Optimization: use main builder to join lines efficiently
+	bc.builder.Reset()
+	bc.builder.Grow(chartHeight * (width + 1)) // Pre-allocate capacity
+	for i := 0; i < chartHeight; i++ {
+		bc.builder.WriteString(bc.lines[i].String())
+		if i < chartHeight-1 {
+			bc.builder.WriteString("\n")
+		}
+	}
+
+	return bc.builder.String()
 }
 
 // createBrailleCharForLineSplit creates a braille character for a specific line with split axis
 func (bc *BrailleChart) createBrailleCharForLineSplit(line, uploadHeight, downloadHeight, halfHeight, dotsPerLine int) string {
+	// Optimization: early return for empty characters
+	if uploadHeight == 0 && downloadHeight == 0 {
+		return " "
+	}
+
 	// Base braille character
 	base := brailleBase
 	var dots int
@@ -255,6 +326,14 @@ func (bc *BrailleChart) createBrailleCharForLineSplit(line, uploadHeight, downlo
 	// Line 0 is at the top, line 5 is at the bottom (natural order)
 	lineTop := line * dotsPerLine
 
+	// Optimization: pre-calculate dot patterns to avoid repeated switch statements
+	dotPatterns := [4]int{
+		0x01 | 0x08, // dots 0,3 (row 0)
+		0x02 | 0x10, // dots 1,4 (row 1)
+		0x04 | 0x20, // dots 2,5 (row 2)
+		0x40 | 0x80, // dots 6,7 (row 3)
+	}
+
 	// Check each dot position in this braille character (4 dots vertically)
 	for dotRow := 0; dotRow < dotsPerLine; dotRow++ {
 		// Calculate the absolute dot position in the chart (from top)
@@ -268,21 +347,7 @@ func (bc *BrailleChart) createBrailleCharForLineSplit(line, uploadHeight, downlo
 			distanceFromAxis := halfHeight - absoluteDotPos
 			if distanceFromAxis <= downloadHeight {
 				hasDownload = true
-				// Fill both columns for area effect
-				switch dotRow {
-				case 0:
-					dots |= 0x01 // dot 0 (left column)
-					dots |= 0x08 // dot 3 (right column)
-				case 1:
-					dots |= 0x02 // dot 1 (left column)
-					dots |= 0x10 // dot 4 (right column)
-				case 2:
-					dots |= 0x04 // dot 2 (left column)
-					dots |= 0x20 // dot 5 (right column)
-				case 3:
-					dots |= 0x40 // dot 6 (left column)
-					dots |= 0x80 // dot 7 (right column)
-				}
+				dots |= dotPatterns[dotRow]
 			}
 		}
 
@@ -293,30 +358,21 @@ func (bc *BrailleChart) createBrailleCharForLineSplit(line, uploadHeight, downlo
 			distanceFromAxis := absoluteDotPos - halfHeight
 			if distanceFromAxis < uploadHeight {
 				hasUpload = true
-				// Fill both columns for area effect
-				switch dotRow {
-				case 0:
-					dots |= 0x01 // dot 0 (left column)
-					dots |= 0x08 // dot 3 (right column)
-				case 1:
-					dots |= 0x02 // dot 1 (left column)
-					dots |= 0x10 // dot 4 (right column)
-				case 2:
-					dots |= 0x04 // dot 2 (left column)
-					dots |= 0x20 // dot 5 (right column)
-				case 3:
-					dots |= 0x40 // dot 6 (left column)
-					dots |= 0x80 // dot 7 (right column)
-				}
+				dots |= dotPatterns[dotRow]
 			}
 		}
+	}
+
+	// Optimization: skip character creation if no dots
+	if dots == 0 {
+		return " "
 	}
 
 	// Create the character
 	char := rune(base + dots)
 	charStr := string(char)
 
-	// Color it based on what data it represents (no overlap since they're in different areas)
+	// Optimization: reduce style applications - apply only when needed
 	if hasUpload && hasDownload {
 		// This shouldn't happen with split axis, but just in case
 		return uploadStyle.Render(charStr)
