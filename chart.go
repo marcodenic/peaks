@@ -2,8 +2,6 @@ package main
 
 import (
 	"strings"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
 // BrailleChart creates beautiful braille-based charts for terminal display
@@ -131,37 +129,17 @@ func (bc *BrailleChart) Render() string {
 
 // renderEmptyChart renders a placeholder when no data is available
 func (bc *BrailleChart) renderEmptyChart() string {
-	emptyStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#6B7280")).
-		Italic(true)
-
-	// Create a simple animated-looking placeholder
-	width := bc.width
-	if width < 20 {
-		width = 40
-	}
-
-	// Calculate the number of lines to fill the height
+	// Just return empty space - don't show anything until data arrives
 	chartHeight := bc.height - 3
 	if chartHeight < 8 {
 		chartHeight = 8
 	}
 
+	// Return empty lines to fill the space
 	var lines []string
-	lines = append(lines, emptyStyle.Render("Collecting network data..."))
-
-	// Fill the remaining height with placeholder braille characters
-	for i := 1; i < chartHeight; i++ {
-		if i == chartHeight/2 {
-			// Add placeholder braille in the middle
-			placeholder := strings.Repeat("⠤", width/4) + strings.Repeat("⠤", width/4) + strings.Repeat("⠤", width/4) + strings.Repeat("⠤", width/4)
-			lines = append(lines, placeholder[:width])
-		} else {
-			lines = append(lines, strings.Repeat("⠀", width))
-		}
+	for i := 0; i < chartHeight; i++ {
+		lines = append(lines, "")
 	}
-
-	lines = append(lines, emptyStyle.Render("Chart will appear here shortly"))
 
 	return strings.Join(lines, "\n")
 }
@@ -173,36 +151,33 @@ func (bc *BrailleChart) renderBrailleChart(width int) string {
 	}
 
 	// Chart dimensions - use the dynamic height more aggressively
-	chartHeight := bc.height - 3            // Reserve space for footer and help, but use most of the height
-	if chartHeight < 8 {                    // Minimum 8 lines for a decent chart
+	chartHeight := bc.height - 3 // Reserve space for footer and help, but use most of the height
+	if chartHeight < 8 {         // Minimum 8 lines for a decent chart
 		chartHeight = 8
 	}
 	dotsPerLine := 4                         // Braille has 4 vertical dots per character
 	totalHeight := chartHeight * dotsPerLine // Total vertical resolution
 	halfHeight := totalHeight / 2            // Split point for upload/download
 
-	// Get the data to display (last 'width' points)
+	// Get the data to display - always show the most recent data on the right
 	dataLen := len(bc.uploadData)
 	if len(bc.downloadData) > dataLen {
 		dataLen = len(bc.downloadData)
-	}
-
-	startIdx := 0
-	if dataLen > width {
-		startIdx = dataLen - width
 	}
 
 	// Create the chart grid
 	lines := make([]string, chartHeight)
 
 	for col := 0; col < width; col++ {
-		dataIdx := startIdx + col
+		// Calculate which data point this column represents
+		// New data should always appear on the right side
+		dataIdx := dataLen - (width - col)
 
 		var uploadVal, downloadVal uint64
-		if dataIdx < len(bc.uploadData) && dataIdx >= 0 {
+		if dataIdx >= 0 && dataIdx < len(bc.uploadData) {
 			uploadVal = bc.uploadData[dataIdx]
 		}
-		if dataIdx < len(bc.downloadData) && dataIdx >= 0 {
+		if dataIdx >= 0 && dataIdx < len(bc.downloadData) {
 			downloadVal = bc.downloadData[dataIdx]
 		}
 
