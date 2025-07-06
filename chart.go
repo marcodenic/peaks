@@ -110,15 +110,20 @@ func (bc *BrailleChart) updateMaxValue() {
 		}
 	}
 
-	// Use more stable scaling that doesn't jump around
+	// Use more aggressive scaling that utilizes full height
 	if currentMax < 1024 {
 		bc.maxValue = 1024
 	} else if currentMax > bc.maxValue {
-		// Only scale up, and do it gradually
-		bc.maxValue = currentMax * 2
-	} else if currentMax < bc.maxValue/4 && bc.maxValue > 1024 {
-		// Only scale down if the current max is much smaller, and gradually
-		bc.maxValue = bc.maxValue / 2
+		// Scale up with only 10% headroom instead of 100%
+		bc.maxValue = currentMax + (currentMax / 10)
+	} else if currentMax < bc.maxValue/2 && bc.maxValue > 1024 {
+		// Scale down more aggressively when current max is less than half
+		bc.maxValue = currentMax + (currentMax / 10)
+	}
+
+	// Ensure minimum headroom
+	if bc.maxValue < currentMax {
+		bc.maxValue = currentMax
 	}
 
 	// Reasonable bounds
@@ -208,9 +213,11 @@ func (bc *BrailleChart) renderBrailleChart(width int) string {
 		}
 
 		// Convert to chart heights (0 to halfHeight for each direction)
+		// Use more precise scaling to fill available height better
 		uploadHeight := int(float64(uploadVal) / float64(bc.maxValue) * float64(halfHeight))
 		downloadHeight := int(float64(downloadVal) / float64(bc.maxValue) * float64(halfHeight))
 
+		// Ensure we don't exceed bounds
 		if uploadHeight > halfHeight {
 			uploadHeight = halfHeight
 		}
