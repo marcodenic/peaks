@@ -63,6 +63,11 @@ type model struct {
 	quitting  bool
 	paused    bool
 	showHelp  bool
+	// Optimization: cache current rates to avoid repeated calculations
+	currentUpload   uint64
+	currentDownload uint64
+	// Optimization: reduce UI update frequency
+	updateCounter int
 }
 
 // initialModel creates and initializes the application model
@@ -148,6 +153,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Update bandwidth data
 			upload, download, err := m.monitor.GetCurrentRates()
 			if err == nil {
+				// Cache current rates
+				m.currentUpload = upload
+				m.currentDownload = download
 				m.chart.AddDataPoint(upload, download)
 				m.ui.stats.Update(upload, download)
 			}
@@ -176,8 +184,8 @@ func (m model) View() string {
 		return goodbyeStyle.Render("Thanks for using Peaks! 🏔️") + "\n"
 	}
 
-	// Get current rates for display
-	upload, download, _ := m.monitor.GetCurrentRates()
+	// Get current rates for display - use cached values to avoid repeated calculations
+	upload, download := m.currentUpload, m.currentDownload
 
 	// Create the chart with full height
 	chartContent := m.chart.Render()

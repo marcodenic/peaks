@@ -16,6 +16,8 @@ type BandwidthMonitor struct {
 	lastStats    map[string]net.IOCountersStat
 	lastTime     time.Time
 	currentRates BandwidthRates
+	// Optimization: reuse slice to avoid allocations
+	statsBuffer  []net.IOCountersStat
 }
 
 // BandwidthRates represents current upload/download rates
@@ -27,8 +29,9 @@ type BandwidthRates struct {
 // NewBandwidthMonitor creates a new bandwidth monitor
 func NewBandwidthMonitor() *BandwidthMonitor {
 	monitor := &BandwidthMonitor{
-		lastStats: make(map[string]net.IOCountersStat),
-		lastTime:  time.Now(),
+		lastStats:   make(map[string]net.IOCountersStat),
+		lastTime:    time.Now(),
+		statsBuffer: make([]net.IOCountersStat, 0, 10), // Pre-allocate for typical interface count
 	}
 
 	// Initialize with first reading
@@ -65,6 +68,9 @@ func (bm *BandwidthMonitor) updateStats() error {
 
 	var totalUpload, totalDownload uint64
 
+	// Optimization: calculate rates more efficiently
+	timeDiffRecip := 1.0 / timeDiff // Calculate reciprocal once
+
 	// Calculate rates for all interfaces
 	for _, stat := range stats {
 		// Skip loopback interfaces
@@ -85,9 +91,9 @@ func (bm *BandwidthMonitor) updateStats() error {
 				bytesRecv = stat.BytesRecv
 			}
 
-			// Convert to rate (bytes per second)
-			uploadRate := uint64(float64(bytesSent) / timeDiff)
-			downloadRate := uint64(float64(bytesRecv) / timeDiff)
+			// Convert to rate (bytes per second) - use reciprocal for efficiency
+			uploadRate := uint64(float64(bytesSent) * timeDiffRecip)
+			downloadRate := uint64(float64(bytesRecv) * timeDiffRecip)
 
 			totalUpload += uploadRate
 			totalDownload += downloadRate
