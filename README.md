@@ -1,4 +1,20 @@
-# 🏔️ PEAKS - Beaut## 🚀 Installation
+# 🏔️ PEAKS - Beautiful Terminal Bandwidth Monitor
+
+![PEAKS Screenshot](peaks.png)
+
+A modern, real-time bandwidth monitoring tool for your terminal with high-resolution braille charts and beautiful UI.
+
+## Features
+
+- 🚀 **Real-time monitoring** - Live bandwidth tracking with smooth updates
+- 📊 **Beautiful charts** - High-resolution braille-based charts with split upload/download display
+- 🎨 **Modern UI** - Clean, colorful interface built with Charm TUI components
+- 📈 **Detailed statistics** - Peak values, totals, and uptime tracking
+- ⚡ **Performance optimized** - Efficient rendering and minimal CPU usage
+- 🔧 **Interactive controls** - Pause, reset, and toggle features
+- 🌐 **Cross-platform** - Works on Linux, macOS, and Windows
+
+## 🚀 Installation
 
 ### Prerequisites
 - Go 1.21 or higher
@@ -6,26 +22,19 @@
 
 ### Quick Install
 
-**Option 1: Build from Source**
+**Build from Source**
 ```bash
 git clone https://github.com/marcodenic/peaks
 cd peaks
-go build -o peaks
+go build -o peaks ./cmd/peaks
 ./peaks
 ```
 
-**Option 2: Using Go Install**
+**Using Make**
 ```bash
-go install github.com/marcodenic/peaks@latest
-peaks
-```
-
-**Option 3: Using Make**
-```bash
-git clone https://github.com/marcodenic/peaks
-cd peaks
-make build
-./peaks
+make build      # Build for current platform
+make build-all  # Build for all platforms
+make run        # Run directly
 ```
 
 ### Cross-Platform Builds
@@ -38,11 +47,128 @@ make build-all
 This creates binaries for:
 - Linux: `peaks_unix`
 - Windows: `peaks.exe`
-- macOS: `peaks_darwin` Bandwidth Monitor
+- macOS: `peaks_darwin`
 
-A modern, real-time bandwidth monitoring tool for your terminal, built with the latest Charm ecosystem tools for a stunning user experience.
+## 🎮 Usage
 
-## ✨ Features
+Simply run the binary:
+```bash
+./peaks
+```
+
+### Controls
+
+- **q** / **Ctrl+C** - Quit
+- **p** / **Space** - Pause/Resume monitoring  
+- **r** - Reset chart and statistics
+- **s** - Toggle statusbar visibility
+
+## 📁 Project Structure
+
+The project has been refactored into a clean, modular structure:
+
+```
+peaks/
+├── cmd/peaks/           # Main application entry point
+│   └── main.go         # Application setup and UI orchestration
+├── internal/           # Internal packages (not importable externally)
+│   ├── chart/          # Chart rendering functionality
+│   │   └── braille.go  # Braille chart implementation
+│   ├── monitor/        # Bandwidth monitoring
+│   │   └── bandwidth.go # Cross-platform bandwidth monitoring
+│   └── ui/             # UI components and utilities
+│       └── components.go # UI components, stats, and formatters
+├── old/                # Legacy single-file implementation
+├── go.mod              # Go module definition
+├── go.sum              # Go module checksums
+├── Makefile            # Build automation
+└── README.md           # This file
+```
+
+### Package Overview
+
+- **cmd/peaks** - Main application entry point, handles UI orchestration and program flow
+- **internal/chart** - Braille chart rendering with optimized performance
+- **internal/monitor** - Cross-platform bandwidth monitoring using gopsutil
+- **internal/ui** - UI components, statistics tracking, and formatting utilities
+
+## 🛠️ Development
+
+### Requirements
+
+- Go 1.21 or later
+- Compatible terminal with Unicode support for braille characters
+
+### Building
+
+```bash
+# Development build
+go build -o peaks ./cmd/peaks
+
+# Production build with optimizations
+go build -ldflags="-s -w" -o peaks ./cmd/peaks
+
+# Cross-compilation
+GOOS=linux GOARCH=amd64 go build -o peaks_linux ./cmd/peaks
+GOOS=windows GOARCH=amd64 go build -o peaks.exe ./cmd/peaks
+GOOS=darwin GOARCH=amd64 go build -o peaks_darwin ./cmd/peaks
+```
+
+### Running Tests
+
+```bash
+go test ./...
+```
+
+### Code Quality
+
+```bash
+go fmt ./...           # Format code
+go vet ./...           # Vet code
+golangci-lint run      # Run linter (requires golangci-lint)
+```
+
+## 🏗️ Architecture
+
+### Design Principles
+
+1. **Separation of Concerns** - Each package has a single responsibility
+2. **Performance First** - Optimized rendering and minimal allocations
+3. **Modularity** - Clean interfaces between components
+4. **Testability** - Testable components with clear dependencies
+
+### Key Components
+
+- **BandwidthMonitor** - Handles cross-platform network statistics collection
+- **BrailleChart** - Renders high-resolution charts using Unicode braille characters
+- **UI Components** - Provides statistics tracking and formatting utilities
+- **Main Application** - Orchestrates all components using Bubble Tea framework
+
+## 📦 Dependencies
+
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea) - Modern TUI framework
+- [Lipgloss](https://github.com/charmbracelet/lipgloss) - Styling and layout
+- [Bubbles](https://github.com/charmbracelet/bubbles) - Common TUI components
+- [gopsutil](https://github.com/shirou/gopsutil) - Cross-platform system monitoring
+- [Teacup](https://github.com/mistakenelf/teacup) - Additional TUI components
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- Built with the amazing [Charm](https://charm.sh) TUI ecosystem
+- Inspired by classic terminal monitoring tools
+- Thanks to the Go community for excellent cross-platform libraries
 
 - **Real-time Monitoring**: Monitor network bandwidth with high-resolution split-axis braille charts
 - **Beautiful TUI**: Built with Bubble Tea and Lip Gloss for a modern terminal interface

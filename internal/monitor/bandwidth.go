@@ -1,8 +1,8 @@
-// Package main - bandwidth monitoring functionality
+// Package monitor provides cross-platform bandwidth monitoring functionality
 //
-// This file provides cross-platform bandwidth monitoring capabilities
-// using the gopsutil library to gather network interface statistics.
-package main
+// This package provides bandwidth monitoring capabilities using the gopsutil
+// library to gather network interface statistics across different platforms.
+package monitor
 
 import (
 	"fmt"

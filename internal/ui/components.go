@@ -1,9 +1,9 @@
-// Package main - UI components and formatting utilities
+// Package ui provides UI components and formatting utilities
 //
-// This file provides UI components for displaying bandwidth statistics
+// This package provides UI components for displaying bandwidth statistics
 // and various formatting utilities for human-readable display of 
 // bandwidth, bytes, and duration values.
-package main
+package ui
 
 import (
 	"fmt"
@@ -20,25 +20,26 @@ type KeyMap struct {
 	Quit  key.Binding
 }
 
-
-
-var keys = KeyMap{
-	Reset: key.NewBinding(
-		key.WithKeys("r"),
-		key.WithHelp("r", "reset chart"),
-	),
-	Pause: key.NewBinding(
-		key.WithKeys("p", " "),
-		key.WithHelp("p/space", "pause/resume"),
-	),
-	Stats: key.NewBinding(
-		key.WithKeys("s"),
-		key.WithHelp("s", "toggle statusbar"),
-	),
-	Quit: key.NewBinding(
-		key.WithKeys("q", "esc", "ctrl+c"),
-		key.WithHelp("q", "quit"),
-	),
+// DefaultKeyMap returns the default key bindings
+func DefaultKeyMap() KeyMap {
+	return KeyMap{
+		Reset: key.NewBinding(
+			key.WithKeys("r"),
+			key.WithHelp("r", "reset chart"),
+		),
+		Pause: key.NewBinding(
+			key.WithKeys("p", " "),
+			key.WithHelp("p/space", "pause/resume"),
+		),
+		Stats: key.NewBinding(
+			key.WithKeys("s"),
+			key.WithHelp("s", "toggle statusbar"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("q", "esc", "ctrl+c"),
+			key.WithHelp("q", "quit"),
+		),
+	}
 }
 
 // Stats represents various statistics about the monitoring
@@ -81,20 +82,34 @@ func (s *Stats) GetUptime() time.Duration {
 	return time.Since(s.StartTime)
 }
 
+// Reset resets all statistics
+func (s *Stats) Reset() {
+	s.TotalUpload = 0
+	s.TotalDownload = 0
+	s.PeakUpload = 0
+	s.PeakDownload = 0
+	s.StartTime = time.Now()
+}
+
 // Enhanced UI components
-type UIComponents struct {
+type Components struct {
 	stats *Stats
 }
 
-// NewUIComponents creates new UI components
-func NewUIComponents() *UIComponents {
-	return &UIComponents{
+// NewComponents creates new UI components
+func NewComponents() *Components {
+	return &Components{
 		stats: NewStats(),
 	}
 }
 
-// formatBandwidth formats bandwidth for UI display
-func formatBandwidth(bps uint64) string {
+// GetStats returns the current statistics
+func (c *Components) GetStats() *Stats {
+	return c.stats
+}
+
+// FormatBandwidth formats bandwidth for UI display
+func FormatBandwidth(bps uint64) string {
 	const unit = 1024
 	if bps < unit {
 		return fmt.Sprintf("%d B/s", bps)
@@ -109,8 +124,8 @@ func formatBandwidth(bps uint64) string {
 	return fmt.Sprintf("%.2f %s", float64(bps)/float64(div), units[exp])
 }
 
-// formatDuration formats a duration in a human-readable way
-func formatDuration(d time.Duration) string {
+// FormatDuration formats a duration in a human-readable way
+func FormatDuration(d time.Duration) string {
 	seconds := int(d.Seconds())
 	if seconds < 60 {
 		return fmt.Sprintf("%ds", seconds)
@@ -125,8 +140,8 @@ func formatDuration(d time.Duration) string {
 	}
 }
 
-// formatBytes formats bytes in a human-readable way
-func formatBytes(bytes uint64) string {
+// FormatBytes formats bytes in a human-readable way
+func FormatBytes(bytes uint64) string {
 	const (
 		KB = 1024
 		MB = KB * 1024

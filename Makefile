@@ -31,23 +31,23 @@ help:
 
 # Build the project
 build:
-	go build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_NAME)
+	go build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_NAME) ./cmd/peaks
 
 # Build for multiple platforms
 build-all: build-linux build-windows build-darwin
 
 build-linux:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_UNIX)
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_UNIX) ./cmd/peaks
 
 build-windows:
-	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_WINDOWS)
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_WINDOWS) ./cmd/peaks
 
 build-darwin:
-	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_DARWIN)
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_DARWIN) ./cmd/peaks
 
 # Run the application
 run:
-	go run .
+	go run ./cmd/peaks
 
 # Test the application
 test:
