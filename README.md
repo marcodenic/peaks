@@ -4,17 +4,18 @@ A modern, real-time bandwidth monitoring tool for your terminal, built with the 
 
 ## ✨ Features
 
-- **Real-time Monitoring**: Monitor network bandwidth with high-resolution braille charts
+- **Real-time Monitoring**: Monitor network bandwidth with high-resolution split-axis braille charts
 - **Beautiful TUI**: Built with Bubble Tea and Lip Gloss for a modern terminal interface
 - **Cross-platform**: Works on Linux, macOS, and Windows
-- **Braille Charts**: High-resolution graphs using Unicode braille characters
+- **Split-Axis Charts**: Clear separation with upload below and download above the axis line
+- **Braille Charts**: High-resolution area charts using Unicode braille characters
 - **Color Coding**: 
-  - 🔴 Red for upload traffic
-  - 🟢 Green for download traffic  
-  - 🟡 Yellow for overlapping traffic
+  - 🔴 Red for upload traffic (below axis)
+  - 🟢 Green for download traffic (above axis)
 - **Interactive Controls**: Pause, reset, toggle stats, and more
 - **Detailed Statistics**: Track uptime, peaks, and totals
 - **Responsive Design**: Adapts to terminal size automatically
+- **1-Minute History**: Shows 60 seconds of bandwidth data at 500ms intervals
 
 ## 🚀 Installation
 
@@ -43,11 +44,11 @@ go build -o peaks
 ## 🖥️ Screenshots
 
 The tool displays:
-- Real-time braille chart showing upload/download patterns
+- Real-time split-axis braille chart with upload below and download above the axis
 - Current bandwidth rates in the footer
 - Optional statistics panel with uptime, peaks, and totals
 - Live/paused status indicator
-- Beautiful color-coded interface
+- Beautiful color-coded interface with clear traffic separation
 
 ## 🛠️ Technical Details
 

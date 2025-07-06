@@ -55,24 +55,24 @@ func tickCmd() tea.Cmd {
 }
 
 type model struct {
-	monitor      *BandwidthMonitor
-	chart        *BrailleChart
-	ui           *UIComponents
-	width        int
-	height       int
-	ready        bool
-	quitting     bool
-	paused       bool
-	showHelp     bool
-	showStats    bool
-	lastTick     time.Time
+	monitor   *BandwidthMonitor
+	chart     *BrailleChart
+	ui        *UIComponents
+	width     int
+	height    int
+	ready     bool
+	quitting  bool
+	paused    bool
+	showHelp  bool
+	showStats bool
+	lastTick  time.Time
 }
 
 func initialModel() model {
 	monitor := NewBandwidthMonitor()
 	chart := NewBrailleChart(maxDataPoints)
 	ui := NewUIComponents()
-	
+
 	return model{
 		monitor:   monitor,
 		chart:     chart,
@@ -124,6 +124,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			upload, download, err := m.monitor.GetCurrentRates()
 			if err == nil {
 				m.chart.AddDataPoint(upload, download)
+				m.ui.stats.Update(upload, download)
 			}
 		}
 		m.lastTick = time.Time(msg)
@@ -152,25 +153,25 @@ func (m model) View() string {
 
 	// Get current rates for display
 	upload, download, _ := m.monitor.GetCurrentRates()
-	
+
 	// Build the main content
 	title := titleStyle.Render("🏔️ PEAKS - Real-time Bandwidth Monitor")
-	
+
 	// Status indicator
 	statusStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#10B981")).
 		Bold(true)
-	
+
 	var statusText string
 	if m.paused {
 		statusText = statusStyle.Foreground(lipgloss.Color("#F59E0B")).Render("⏸ PAUSED")
 	} else {
 		statusText = statusStyle.Render("🔴 LIVE")
 	}
-	
+
 	// Create the chart
 	chartContent := m.chart.Render()
-	
+
 	// Create the main display area
 	mainContent := lipgloss.JoinVertical(
 		lipgloss.Left,
@@ -179,19 +180,19 @@ func (m model) View() string {
 		"",
 		chartContent,
 	)
-	
+
 	// Create the footer with current stats
 	uploadText := uploadStyle.Render(fmt.Sprintf("↑ %s", formatBandwidth(upload)))
 	downloadText := downloadStyle.Render(fmt.Sprintf("↓ %s", formatBandwidth(download)))
-	
+
 	footer := footerStyle.Render(fmt.Sprintf("%s  %s", uploadText, downloadText))
-	
+
 	// Create the right panel with stats (if enabled)
 	var rightPanel string
 	if m.showStats {
 		rightPanel = m.ui.RenderStats(upload, download)
 	}
-	
+
 	// Combine main content and right panel
 	var contentArea string
 	if m.showStats {
@@ -203,14 +204,14 @@ func (m model) View() string {
 	} else {
 		contentArea = mainContent
 	}
-	
+
 	// Add footer
 	contentWithFooter := lipgloss.JoinVertical(
 		lipgloss.Left,
 		contentArea,
 		footer,
 	)
-	
+
 	// Add help if shown
 	if m.showHelp {
 		helpContent := m.ui.RenderHelp()
@@ -219,7 +220,7 @@ func (m model) View() string {
 			Background(lipgloss.Color("#1F2937")).
 			Padding(1).
 			Margin(1, 0)
-		
+
 		styledHelp := helpStyle.Render(helpContent)
 		contentWithFooter = lipgloss.JoinVertical(
 			lipgloss.Left,
@@ -231,7 +232,7 @@ func (m model) View() string {
 		miniHelpStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#6B7280")).
 			Faint(true)
-		
+
 		miniHelp := miniHelpStyle.Render("Press '?' for help • 'p' to pause • 's' to toggle stats • 'r' to reset • 'q' to quit")
 		contentWithFooter = lipgloss.JoinVertical(
 			lipgloss.Left,
@@ -239,10 +240,10 @@ func (m model) View() string {
 			miniHelp,
 		)
 	}
-	
+
 	// Add border and center
 	bordered := borderStyle.Render(contentWithFooter)
-	
+
 	// Center the content
 	return lipgloss.Place(
 		m.width, m.height,

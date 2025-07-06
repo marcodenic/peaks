@@ -7,20 +7,15 @@ import (
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // KeyMap defines the key bindings for the application
 type KeyMap struct {
-	Up       key.Binding
-	Down     key.Binding
-	Left     key.Binding
-	Right    key.Binding
-	Reset    key.Binding
-	Pause    key.Binding
-	Help     key.Binding
-	Quit     key.Binding
+	Reset key.Binding
+	Pause key.Binding
+	Help  key.Binding
+	Quit  key.Binding
 }
 
 // ShortHelp returns keybindings to be shown in the mini help view
@@ -31,28 +26,11 @@ func (k KeyMap) ShortHelp() []key.Binding {
 // FullHelp returns keybindings for the expanded help view
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Left, k.Right},
 		{k.Reset, k.Pause, k.Help, k.Quit},
 	}
 }
 
 var keys = KeyMap{
-	Up: key.NewBinding(
-		key.WithKeys("up", "k"),
-		key.WithHelp("↑/k", "move up"),
-	),
-	Down: key.NewBinding(
-		key.WithKeys("down", "j"),
-		key.WithHelp("↓/j", "move down"),
-	),
-	Left: key.NewBinding(
-		key.WithKeys("left", "h"),
-		key.WithHelp("←/h", "move left"),
-	),
-	Right: key.NewBinding(
-		key.WithKeys("right", "l"),
-		key.WithHelp("→/l", "move right"),
-	),
 	Reset: key.NewBinding(
 		key.WithKeys("r"),
 		key.WithHelp("r", "reset chart"),
@@ -73,14 +51,11 @@ var keys = KeyMap{
 
 // Stats represents various statistics about the monitoring
 type Stats struct {
-	TotalUpload    uint64
-	TotalDownload  uint64
-	PeakUpload     uint64
-	PeakDownload   uint64
-	StartTime      time.Time
-	PacketsUp      uint64
-	PacketsDown    uint64
-	DroppedPackets uint64
+	TotalUpload   uint64
+	TotalDownload uint64
+	PeakUpload    uint64
+	PeakDownload  uint64
+	StartTime     time.Time
 }
 
 // NewStats creates a new stats tracker
@@ -94,7 +69,7 @@ func NewStats() *Stats {
 func (s *Stats) Update(upload, download uint64) {
 	s.TotalUpload += upload
 	s.TotalDownload += download
-	
+
 	if upload > s.PeakUpload {
 		s.PeakUpload = upload
 	}
@@ -110,9 +85,8 @@ func (s *Stats) GetUptime() time.Duration {
 
 // Enhanced UI components
 type UIComponents struct {
-	help    help.Model
-	spinner spinner.Model
-	stats   *Stats
+	help  help.Model
+	stats *Stats
 }
 
 // NewUIComponents creates new UI components
@@ -123,22 +97,17 @@ func NewUIComponents() *UIComponents {
 	h.Styles.FullKey = lipgloss.NewStyle().Foreground(lipgloss.Color("#00D7FF"))
 	h.Styles.FullDesc = lipgloss.NewStyle().Foreground(lipgloss.Color("#626262"))
 	h.Styles.FullSeparator = lipgloss.NewStyle().Foreground(lipgloss.Color("#3C3C3C"))
-	
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#00D7FF"))
-	
+
 	return &UIComponents{
-		help:    h,
-		spinner: s,
-		stats:   NewStats(),
+		help:  h,
+		stats: NewStats(),
 	}
 }
 
 // RenderStats creates a beautiful stats display
 func (ui *UIComponents) RenderStats(upload, download uint64) string {
 	ui.stats.Update(upload, download)
-	
+
 	statStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#E5E7EB")).
 		Background(lipgloss.Color("#1F2937")).
@@ -146,17 +115,17 @@ func (ui *UIComponents) RenderStats(upload, download uint64) string {
 		Margin(0, 1).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#374151"))
-	
+
 	labelStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#9CA3AF")).
 		Bold(true)
-	
+
 	valueStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#F9FAFB")).
 		Bold(true)
-	
+
 	uptime := ui.stats.GetUptime()
-	
+
 	lines := []string{
 		lipgloss.JoinHorizontal(
 			lipgloss.Left,
@@ -184,7 +153,7 @@ func (ui *UIComponents) RenderStats(upload, download uint64) string {
 			valueStyle.Render(formatBytes(ui.stats.TotalDownload)),
 		),
 	}
-	
+
 	return statStyle.Render(strings.Join(lines, "\n"))
 }
 
@@ -214,7 +183,7 @@ func formatBytes(bytes uint64) string {
 		GB = MB * 1024
 		TB = GB * 1024
 	)
-	
+
 	switch {
 	case bytes >= TB:
 		return fmt.Sprintf("%.2f TB", float64(bytes)/TB)

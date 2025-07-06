@@ -1,6 +1,8 @@
 module github.com/marco/peaks
 
-go 1.23.8
+go 1.23.0
+
+toolchain go1.23.8
 
 require (
 	github.com/charmbracelet/bubbles v0.21.0

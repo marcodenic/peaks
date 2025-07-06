@@ -10,13 +10,13 @@ func TestBandwidthMonitor(t *testing.T) {
 	if monitor == nil {
 		t.Fatal("Failed to create bandwidth monitor")
 	}
-	
+
 	// Test getting current rates
 	upload, download, err := monitor.GetCurrentRates()
 	if err != nil {
 		t.Logf("Warning: Could not get bandwidth rates: %v", err)
 	}
-	
+
 	t.Logf("Current rates - Upload: %d B/s, Download: %d B/s", upload, download)
 }
 
@@ -25,17 +25,17 @@ func TestBrailleChart(t *testing.T) {
 	if chart == nil {
 		t.Fatal("Failed to create braille chart")
 	}
-	
+
 	// Test adding data points
 	chart.AddDataPoint(1024, 2048)
 	chart.AddDataPoint(2048, 1024)
-	
+
 	// Test rendering
 	rendered := chart.Render()
 	if rendered == "" {
 		t.Fatal("Chart rendered empty string")
 	}
-	
+
 	t.Logf("Chart rendered successfully: %d characters", len(rendered))
 }
 
@@ -49,7 +49,7 @@ func TestFormatBandwidth(t *testing.T) {
 		{1024 * 1024, "1.00 MB/s"},
 		{1024 * 1024 * 1024, "1.00 GB/s"},
 	}
-	
+
 	for _, test := range tests {
 		result := formatBandwidth(test.input)
 		if result != test.expected {
@@ -63,20 +63,20 @@ func TestUIComponents(t *testing.T) {
 	if ui == nil {
 		t.Fatal("Failed to create UI components")
 	}
-	
+
 	// Test stats rendering
 	stats := ui.RenderStats(1024, 2048)
 	if stats == "" {
 		t.Fatal("Stats rendered empty string")
 	}
-	
+
 	t.Logf("Stats rendered successfully: %d characters", len(stats))
 }
 
 func TestTickMsg(t *testing.T) {
 	now := time.Now()
 	msg := tickMsg(now)
-	
+
 	if time.Time(msg) != now {
 		t.Error("tickMsg conversion failed")
 	}
@@ -84,7 +84,7 @@ func TestTickMsg(t *testing.T) {
 
 func BenchmarkBandwidthMonitor(b *testing.B) {
 	monitor := NewBandwidthMonitor()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		monitor.GetCurrentRates()
@@ -93,7 +93,7 @@ func BenchmarkBandwidthMonitor(b *testing.B) {
 
 func BenchmarkBrailleChart(b *testing.B) {
 	chart := NewBrailleChart(120)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		chart.AddDataPoint(uint64(i*1024), uint64(i*2048))
