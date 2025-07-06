@@ -1,29 +1,20 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mistakenelf/teacup/statusbar"
 )
 
-const (
+var (
 	// Update frequency for bandwidth monitoring
 	updateInterval = 500 * time.Millisecond
 	// Maximum data points to keep for the chart
 	maxDataPoints = 120 // 60 seconds of history at 2 FPS
-)
-
-var (
-	// Global styles using the latest Lip Gloss features
-	uploadStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#F87171")). // Red for upload
-			Bold(true)
-
-	downloadStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#34D399")). // Green for download
-			Bold(true)
 )
 
 type tickMsg time.Time
@@ -38,6 +29,7 @@ type model struct {
 	monitor   *BandwidthMonitor
 	chart     *BrailleChart
 	ui        *UIComponents
+	statusbar statusbar.Model
 	width     int
 	height    int
 	ready     bool
@@ -53,10 +45,35 @@ func initialModel() model {
 	chart := NewBrailleChart(maxDataPoints)
 	ui := NewUIComponents()
 
+	// Create statusbar with 4 sections and nice colors
+	sb := statusbar.New(
+		// Current rates section - white for visibility
+		statusbar.ColorConfig{
+			Foreground: lipgloss.AdaptiveColor{Dark: "#E5E7EB", Light: "#1F2937"},
+			Background: lipgloss.AdaptiveColor{Dark: "#1F2937", Light: "#E5E7EB"},
+		},
+		// Peak values section - muted
+		statusbar.ColorConfig{
+			Foreground: lipgloss.AdaptiveColor{Dark: "#9CA3AF", Light: "#6B7280"},
+			Background: lipgloss.AdaptiveColor{Dark: "#1F2937", Light: "#E5E7EB"},
+		},
+		// Totals section - subtle
+		statusbar.ColorConfig{
+			Foreground: lipgloss.AdaptiveColor{Dark: "#6B7280", Light: "#9CA3AF"},
+			Background: lipgloss.AdaptiveColor{Dark: "#1F2937", Light: "#E5E7EB"},
+		},
+		// Uptime section - blue
+		statusbar.ColorConfig{
+			Foreground: lipgloss.AdaptiveColor{Dark: "#60A5FA", Light: "#2563EB"},
+			Background: lipgloss.AdaptiveColor{Dark: "#1F2937", Light: "#E5E7EB"},
+		},
+	)
+
 	return model{
 		monitor:   monitor,
 		chart:     chart,
 		ui:        ui,
+		statusbar: sb,
 		lastTick:  time.Now(),
 		showStats: false, // Start with stats disabled
 	}
@@ -79,6 +96,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.chart.SetWidth(msg.Width - 2) // Account for minimal padding
 		// Set chart height to fill most of the terminal height - be more aggressive
 		m.chart.SetHeight(msg.Height - 2) // Account for footer and help text (reduced from 4 to 2)
+		// Set statusbar width
+		m.statusbar.SetSize(msg.Width)
 		return m, nil
 
 	case tea.KeyMsg:
@@ -143,8 +162,32 @@ func (m model) View() string {
 	// Create the main display area (just the chart)
 	mainContent := chartContent
 
-	// Create the footer with comprehensive stats
-	footer := m.renderStatusBar(upload, download)
+	// Create the footer with comprehensive stats using teacup statusbar
+	m.ui.stats.Update(upload, download)
+
+	// Format current rates with truly fixed width to prevent jumping
+	// NO STYLING HERE - use plain text with fixed width formatting
+	uploadFormatted := formatBandwidth(upload)
+	downloadFormatted := formatBandwidth(download)
+
+	// Use fixed width formatting WITHOUT any styling to prevent jumping
+	currentRates := fmt.Sprintf("↑%11s ↓%11s", uploadFormatted, downloadFormatted)
+
+	// Format peak values with fixed formatting
+	peakUploadFormatted := formatBandwidth(m.ui.stats.PeakUpload)
+	peakDownloadFormatted := formatBandwidth(m.ui.stats.PeakDownload)
+	peakValues := fmt.Sprintf("Peak: ↑%9s ↓%9s", peakUploadFormatted, peakDownloadFormatted)
+
+	// Format totals with fixed formatting
+	totalUploadFormatted := formatBytes(m.ui.stats.TotalUpload)
+	totalDownloadFormatted := formatBytes(m.ui.stats.TotalDownload)
+	totalValues := fmt.Sprintf("Total: ↑%8s ↓%8s", totalUploadFormatted, totalDownloadFormatted)
+
+	// Format uptime
+	uptimeValue := "Up: " + formatDuration(m.ui.stats.GetUptime())
+
+	m.statusbar.SetContent(currentRates, peakValues, totalValues, uptimeValue)
+	footer := m.statusbar.View()
 
 	// Main content is just the chart
 	contentArea := mainContent
@@ -187,119 +230,6 @@ func (m model) View() string {
 
 	// Return the content without centering to fill the terminal
 	return contentWithFooter
-}
-
-// renderStatusBar creates a comprehensive status bar with all stats
-func (m model) renderStatusBar(upload, download uint64) string {
-	// Update stats
-	m.ui.stats.Update(upload, download)
-
-	// Define styles for the status bar
-	barStyle := lipgloss.NewStyle().
-		Background(lipgloss.Color("#1F2937")).
-		Foreground(lipgloss.Color("#E5E7EB")).
-		Padding(0, 1).
-		MarginTop(1).
-		Width(m.width) // Set width to terminal width to ensure full background coverage
-
-	// Current rates with fixed width to prevent layout shift
-	currentUploadStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#F87171")).
-		Bold(true).
-		Width(10).
-		Align(lipgloss.Right)
-	
-	currentDownloadStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#34D399")).
-		Bold(true).
-		Width(10).
-		Align(lipgloss.Right)
-
-	// Peak values with muted styling
-	peakStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#9CA3AF")).
-		Width(11).
-		Align(lipgloss.Right)
-
-	// Total values with subtle styling
-	totalStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#6B7280")).
-		Width(11).
-		Align(lipgloss.Right)
-
-	// Uptime with accent color
-	uptimeStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#60A5FA")).
-		Bold(true)
-
-	// Labels with consistent styling
-	labelStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#D1D5DB")).
-		Faint(true)
-
-	// Format values with fixed width
-	currentUpload := currentUploadStyle.Render(formatBandwidth(upload))
-	currentDownload := currentDownloadStyle.Render(formatBandwidth(download))
-	peakUpload := peakStyle.Render(formatBandwidth(m.ui.stats.PeakUpload))
-	peakDownload := peakStyle.Render(formatBandwidth(m.ui.stats.PeakDownload))
-	totalUpload := totalStyle.Render(formatBytes(m.ui.stats.TotalUpload))
-	totalDownload := totalStyle.Render(formatBytes(m.ui.stats.TotalDownload))
-	uptime := uptimeStyle.Render(formatDuration(m.ui.stats.GetUptime()))
-
-	// Create more compact sections
-	currentSection := lipgloss.JoinHorizontal(
-		lipgloss.Left,
-		labelStyle.Render("↑"),
-		currentUpload,
-		labelStyle.Render(" ↓"),
-		currentDownload,
-	)
-
-	peakSection := lipgloss.JoinHorizontal(
-		lipgloss.Left,
-		labelStyle.Render("Peak: ↑"),
-		peakUpload,
-		labelStyle.Render(" ↓"),
-		peakDownload,
-	)
-
-	totalSection := lipgloss.JoinHorizontal(
-		lipgloss.Left,
-		labelStyle.Render("Total: ↑"),
-		totalUpload,
-		labelStyle.Render(" ↓"),
-		totalDownload,
-	)
-
-	uptimeSection := lipgloss.JoinHorizontal(
-		lipgloss.Left,
-		labelStyle.Render("Up: "),
-		uptime,
-	)
-
-	// Join all sections with compact separators
-	separatorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#374151")).
-		Faint(true)
-
-	// Create a more compact layout
-	statusContent := lipgloss.JoinHorizontal(
-		lipgloss.Left,
-		currentSection,
-		separatorStyle.Render(" │ "),
-		peakSection,
-		separatorStyle.Render(" │ "),
-		totalSection,
-		separatorStyle.Render(" │ "),
-		uptimeSection,
-	)
-
-	// Create a content wrapper that fills the full width
-	contentWrapper := lipgloss.NewStyle().
-		Width(m.width).
-		Align(lipgloss.Left)
-
-	return barStyle.Render(contentWrapper.Render(statusContent))
 }
 
 func main() {

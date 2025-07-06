@@ -2,6 +2,19 @@ package main
 
 import (
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
+
+var (
+	// Chart-specific styles for braille characters
+	uploadStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#F87171")). // Red for upload
+			Bold(true)
+
+	downloadStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#34D399")). // Green for download
+			Bold(true)
 )
 
 // BrailleChart creates beautiful braille-based charts for terminal display

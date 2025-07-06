@@ -164,34 +164,30 @@ func (ui *UIComponents) RenderHelp() string {
 
 // formatBandwidth formats bandwidth for UI display
 func formatBandwidth(bps uint64) string {
-	const (
-		KB = 1024
-		MB = KB * 1024
-		GB = MB * 1024
-	)
-
-	switch {
-	case bps >= GB:
-		return fmt.Sprintf("%.2f GB/s", float64(bps)/GB)
-	case bps >= MB:
-		return fmt.Sprintf("%.2f MB/s", float64(bps)/MB)
-	case bps >= KB:
-		return fmt.Sprintf("%.2f KB/s", float64(bps)/KB)
-	default:
+	const unit = 1024
+	if bps < unit {
 		return fmt.Sprintf("%d B/s", bps)
 	}
+	div, exp := uint64(unit), 0
+	for n := bps / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.2f %cB/s", float64(bps)/float64(div), "KMGTPE"[exp])
 }
 
 // formatDuration formats a duration in a human-readable way
 func formatDuration(d time.Duration) string {
 	if d < time.Minute {
-		return fmt.Sprintf("%.0fs", d.Seconds())
+		return fmt.Sprintf("%ds", int(d.Seconds()))
 	} else if d < time.Hour {
-		return fmt.Sprintf("%.0fm %.0fs", d.Minutes(), d.Seconds()-60*d.Minutes())
+		minutes := int(d.Minutes())
+		seconds := int(d.Seconds()) % 60
+		return fmt.Sprintf("%dm%ds", minutes, seconds)
 	} else {
 		hours := int(d.Hours())
-		minutes := int(d.Minutes()) - hours*60
-		return fmt.Sprintf("%dh %dm", hours, minutes)
+		minutes := int(d.Minutes()) % 60
+		return fmt.Sprintf("%dh%dm", hours, minutes)
 	}
 }
 
