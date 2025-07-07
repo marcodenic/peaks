@@ -17,12 +17,12 @@ const (
 	brailleDots    = 4                 // Braille has 4 vertical dots per character
 	brailleBase    = 0x2800            // Base braille character code
 	maxScaleLimit  = 100 * 1024 * 1024 // 100MB/s maximum scale
-	
+
 	// Optimization: pre-calculated constants
-	maxBrailleChars = 256              // Maximum number of braille characters (0x2800-0x28FF)
-	defaultChartWidth = 80
+	maxBrailleChars    = 256 // Maximum number of braille characters (0x2800-0x28FF)
+	defaultChartWidth  = 80
 	defaultChartHeight = 20
-	defaultMaxPoints = 50
+	defaultMaxPoints   = 50
 )
 
 // Optimization: pre-calculated dot patterns as package constants
@@ -42,7 +42,7 @@ var (
 	downloadStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#34D399")). // Green for download
 			Bold(true)
-			
+
 	// Optimization: character cache for styled braille characters
 	uploadCharCache   = make(map[rune]string, 256)
 	downloadCharCache = make(map[rune]string, 256)
@@ -58,11 +58,11 @@ type BrailleChart struct {
 	maxValue     uint64
 	minHeight    int
 	// Optimization: track current max without full recalculation
-	currentMax   uint64
+	currentMax uint64
 	// Optimization: pre-allocated string builder for rendering
-	builder      strings.Builder
+	builder strings.Builder
 	// Optimization: pre-allocated slice for lines to avoid repeated allocations
-	lines        []strings.Builder
+	lines []strings.Builder
 }
 
 // DataPoint represents a single measurement point
@@ -74,9 +74,9 @@ type DataPoint struct {
 // NewBrailleChart creates a new braille chart
 func NewBrailleChart(maxPoints int) *BrailleChart {
 	return &BrailleChart{
-		width:        defaultChartWidth,
-		height:       defaultChartHeight,
-		maxPoints:    maxPoints,
+		width:     defaultChartWidth,
+		height:    defaultChartHeight,
+		maxPoints: maxPoints,
 		// Optimization: pre-allocate slices with fixed capacity to avoid reallocations
 		uploadData:   make([]uint64, 0, maxPoints),
 		downloadData: make([]uint64, 0, maxPoints),
@@ -84,7 +84,7 @@ func NewBrailleChart(maxPoints int) *BrailleChart {
 		minHeight:    MinChartHeight,
 		currentMax:   0,
 		// Optimization: pre-allocate string builders
-		lines:        make([]strings.Builder, 0, defaultMaxPoints), // Pre-allocate for typical chart heights
+		lines: make([]strings.Builder, 0, defaultMaxPoints), // Pre-allocate for typical chart heights
 	}
 }
 
@@ -135,17 +135,17 @@ func (bc *BrailleChart) trimDataIfNeeded() {
 	if len(bc.uploadData) > bc.maxPoints {
 		removedUpload := bc.uploadData[0]
 		bc.uploadData = bc.uploadData[1:]
-		
+
 		// If we removed the max value, recalculate
 		if removedUpload == bc.currentMax {
 			bc.recalculateMax()
 		}
 	}
-	
+
 	if len(bc.downloadData) > bc.maxPoints {
 		removedDownload := bc.downloadData[0]
 		bc.downloadData = bc.downloadData[1:]
-		
+
 		// If we removed the max value, recalculate
 		if removedDownload == bc.currentMax {
 			bc.recalculateMax()
@@ -168,31 +168,64 @@ func (bc *BrailleChart) recalculateMax() {
 	}
 }
 
-// updateMaxValue updates the chart's maximum value for scaling
+// updateMaxValue updates the chart's maximum value for scaling based on visible data
 func (bc *BrailleChart) updateMaxValue() {
-	// Optimization: use tracked currentMax instead of recalculating every time
-	currentMax := bc.currentMax
+	// Calculate max value from only the currently visible data points
+	visibleMax := bc.getVisibleDataMax()
 
-	// Use more aggressive scaling that utilizes full height
-	if currentMax < 1024 {
+	// Add minimal headroom (20%) for better visualization
+	if visibleMax > 0 {
+		bc.maxValue = visibleMax + (visibleMax / 5)
+	} else {
+		bc.maxValue = 1024 // Minimum scale
+	}
+
+	// Ensure minimum scale
+	if bc.maxValue < 1024 {
 		bc.maxValue = 1024
-	} else if currentMax > bc.maxValue {
-		// Scale up with only 10% headroom instead of 100%
-		bc.maxValue = currentMax + (currentMax / 10)
-	} else if currentMax < bc.maxValue/2 && bc.maxValue > 1024 {
-		// Scale down more aggressively when current max is less than half
-		bc.maxValue = currentMax + (currentMax / 10)
 	}
 
-	// Ensure minimum headroom
-	if bc.maxValue < currentMax {
-		bc.maxValue = currentMax
-	}
-
-	// Reasonable bounds
+	// Apply reasonable upper bound
 	if bc.maxValue > maxScaleLimit {
 		bc.maxValue = maxScaleLimit
 	}
+}
+
+// getVisibleDataMax calculates the maximum value from currently visible data points
+func (bc *BrailleChart) getVisibleDataMax() uint64 {
+	var maxVal uint64
+
+	// Calculate which data points are currently visible
+	dataLen := len(bc.uploadData)
+	if downloadLen := len(bc.downloadData); downloadLen > dataLen {
+		dataLen = downloadLen
+	}
+
+	if dataLen == 0 {
+		return 0
+	}
+
+	// Check only the visible data points (rightmost chartWidth points)
+	startIndex := 0
+	if dataLen > bc.width {
+		startIndex = dataLen - bc.width
+	}
+
+	// Find max in visible upload data
+	for i := startIndex; i < len(bc.uploadData); i++ {
+		if bc.uploadData[i] > maxVal {
+			maxVal = bc.uploadData[i]
+		}
+	}
+
+	// Find max in visible download data
+	for i := startIndex; i < len(bc.downloadData); i++ {
+		if bc.downloadData[i] > maxVal {
+			maxVal = bc.downloadData[i]
+		}
+	}
+
+	return maxVal
 }
 
 // Reset clears all data points and resets the chart
@@ -208,6 +241,9 @@ func (bc *BrailleChart) Render() string {
 	if len(bc.uploadData) == 0 && len(bc.downloadData) == 0 {
 		return bc.renderEmptyChart()
 	}
+
+	// Update scaling based on currently visible data before rendering
+	bc.updateMaxValue()
 
 	// Reset and prepare string builder
 	bc.builder.Reset()
@@ -227,16 +263,16 @@ func (bc *BrailleChart) Render() string {
 	// Calculate chart dimensions
 	chartWidth := bc.width
 	chartHeight := bc.height
-	
+
 	// Calculate the center line (split between upload and download)
 	centerLine := chartHeight / 2
-	
+
 	// Calculate data points per character
 	dataLen := len(bc.uploadData)
 	if downloadLen := len(bc.downloadData); downloadLen > dataLen {
 		dataLen = downloadLen
 	}
-	
+
 	if dataLen == 0 {
 		return bc.renderEmptyChart()
 	}
@@ -245,7 +281,7 @@ func (bc *BrailleChart) Render() string {
 	for x := 0; x < chartWidth; x++ {
 		// Calculate which data point this column represents (scrolling from right)
 		dataIndex := dataLen - (chartWidth - x)
-		
+
 		// Get upload and download values for this column
 		var upload, download uint64
 		if dataIndex >= 0 && dataIndex < len(bc.uploadData) {
@@ -276,7 +312,7 @@ func (bc *BrailleChart) renderColumn(x int, upload, download uint64, centerLine 
 	halfHeight := centerLine * brailleDots
 	maxValueFloat := float64(bc.maxValue)
 	halfHeightFloat := float64(halfHeight)
-	
+
 	uploadHeight := int(float64(upload) / maxValueFloat * halfHeightFloat)
 	downloadHeight := int(float64(download) / maxValueFloat * halfHeightFloat)
 
@@ -385,7 +421,7 @@ func (bc *BrailleChart) getStyledChar(char rune, isUpload bool) string {
 // renderEmptyChart renders an empty chart placeholder
 func (bc *BrailleChart) renderEmptyChart() string {
 	bc.builder.Reset()
-	
+
 	for y := 0; y < bc.height; y++ {
 		if y > 0 {
 			bc.builder.WriteString("\n")
@@ -393,7 +429,7 @@ func (bc *BrailleChart) renderEmptyChart() string {
 		// Empty space - no center line
 		bc.builder.WriteString(strings.Repeat(" ", bc.width))
 	}
-	
+
 	return bc.builder.String()
 }
 

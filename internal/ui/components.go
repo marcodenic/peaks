@@ -1,7 +1,7 @@
 // Package ui provides UI components and formatting utilities
 //
 // This package provides UI components for displaying bandwidth statistics
-// and various formatting utilities for human-readable display of 
+// and various formatting utilities for human-readable display of
 // bandwidth, bytes, and duration values.
 package ui
 
@@ -63,12 +63,15 @@ func NewStats() *Stats {
 
 // Update updates the statistics
 func (s *Stats) Update(upload, download uint64) {
-	// Optimization: calculate totals based on rate * time instead of accumulating
-	// This is more accurate for bandwidth totals
-	s.TotalUpload += upload * uint64(s.updateInterval.Seconds())
-	s.TotalDownload += download * uint64(s.updateInterval.Seconds())
+	// Calculate totals based on rate * time
+	// upload and download are in bytes per second, so multiply by time interval
+	bytesUploadedThisInterval := float64(upload) * s.updateInterval.Seconds()
+	bytesDownloadedThisInterval := float64(download) * s.updateInterval.Seconds()
 
-	// Optimization: use bitwise operations for simple comparisons when possible
+	s.TotalUpload += uint64(bytesUploadedThisInterval)
+	s.TotalDownload += uint64(bytesDownloadedThisInterval)
+
+	// Update peak values
 	if upload > s.PeakUpload {
 		s.PeakUpload = upload
 	}
