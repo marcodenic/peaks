@@ -1,18 +1,26 @@
 # 🏔️ PEAKS - Beautiful Terminal Bandwidth Monitor
 
-![PEAKS Screenshot](peaks.png)
+![PEAKS Screenshot - Split Mode](peaks.png)
+
+*Split axis mode with upload below and download above the central axis*
+
+![PEAKS Screenshot - Overlay Mode](peaks-mode2.png)
+
+*Overlay mode with both charts combined at the bottom, showing yellow overlap*
 
 A modern, real-time bandwidth monitoring tool for your terminal with high-resolution braille charts and beautiful UI.
 
 ## Features
 
 - 🚀 **Real-time monitoring** - Live bandwidth tracking with smooth updates
-- 📊 **Beautiful charts** - High-resolution braille-based charts with split upload/download display
+- 📊 **Beautiful charts** - High-resolution braille-based charts with dual display modes
 - 🎨 **Modern UI** - Clean, colorful interface built with Charm TUI components
 - 📈 **Detailed statistics** - Peak values, totals, and uptime tracking
 - ⚡ **Performance optimized** - Efficient rendering and minimal CPU usage
 - 🔧 **Interactive controls** - Pause, reset, and toggle features
 - 🌐 **Cross-platform** - Works on Linux, macOS, and Windows
+- 🎯 **Dual display modes** - Switch between split axis and overlay modes
+- 🟡 **Smart overlap detection** - Yellow highlighting where upload and download overlap
 
 ## 🚀 Installation
 
@@ -82,6 +90,7 @@ Simply run the binary:
 - **p** / **Space** - Pause/Resume monitoring  
 - **r** - Reset chart and statistics
 - **s** - Toggle statusbar visibility
+- **m** - Toggle between split axis and overlay display modes
 
 ## 📁 Project Structure
 
@@ -196,8 +205,9 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **Split-Axis Charts**: Clear separation with upload below and download above the axis line
 - **Braille Charts**: High-resolution area charts using Unicode braille characters
 - **Color Coding**: 
-  - 🔴 Red for upload traffic (below axis)
-  - 🟢 Green for download traffic (above axis)
+  - 🔴 Red for upload traffic
+  - 🟢 Green for download traffic  
+  - 🟡 Yellow for overlapping traffic (overlay mode only)
 - **Interactive Controls**: Pause, reset, toggle stats, and more
 - **Detailed Statistics**: Track uptime, peaks, and totals
 - **Responsive Design**: Adapts to terminal size automatically
@@ -225,12 +235,25 @@ go build -o peaks
 | `p` / `Space` | Pause/Resume monitoring |
 | `r` | Reset chart and statistics |
 | `s` | Toggle statusbar |
+| `m` | Toggle display mode (split/overlay) |
 
 ## 🖥️ Screenshots
 
-The tool displays:
-- Real-time split-axis braille chart with upload below and download above the axis
-- Current bandwidth rates in the footer
+The tool offers two display modes:
+
+### Split Axis Mode (Default)
+- Upload data displayed below the central horizontal axis (red)
+- Download data displayed above the central horizontal axis (green)
+- Clear separation between upload and download traffic
+
+### Overlay Mode
+- Both upload and download charts displayed from the bottom axis
+- Upload and download data overlaid on the same chart area
+- Yellow highlighting where upload and download traffic overlap
+- Press `m` to toggle between modes
+
+Both modes display:
+- Real-time bandwidth rates in the footer
 - Optional statusbar with uptime, peaks, and totals
 - Live/paused status indicator
 - Always-visible mini-help with essential commands

@@ -197,9 +197,9 @@ func (bc *BrailleChart) updateMaxValue() {
 	// Calculate max value from only the currently visible data points
 	visibleMax := bc.getVisibleDataMax()
 
-	// Add minimal headroom (20%) for better visualization
+	// Use exact maximum value with no headroom for full height utilization
 	if visibleMax > 0 {
-		bc.maxValue = visibleMax + (visibleMax / 5)
+		bc.maxValue = visibleMax
 	} else {
 		bc.maxValue = 1024 // Minimum scale
 	}
