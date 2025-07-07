@@ -30,9 +30,9 @@ jobs:
 
     - name: Build binaries
       run: |
-        go build -o peaks-linux-amd64 ./cmd/peaks
-        GOOS=windows go build -o peaks-windows-amd64.exe ./cmd/peaks
-        GOOS=darwin go build -o peaks-darwin-amd64 ./cmd/peaks
+        go build -o peaks-linux-amd64 .
+        GOOS=windows go build -o peaks-windows-amd64.exe .
+        GOOS=darwin go build -o peaks-darwin-amd64 .
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
