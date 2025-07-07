@@ -14,8 +14,6 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
     - name: Set up Go
       uses: actions/setup-go@v5
@@ -32,32 +30,17 @@ jobs:
 
     - name: Build binaries
       run: |
-        # Ensure we're in the right directory
-        pwd
-        ls -la cmd/peaks/
-        
-        # Linux
-        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o peaks-linux-amd64 ./cmd/peaks
-        CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o peaks-linux-arm64 ./cmd/peaks
-        
-        # macOS
-        CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o peaks-darwin-amd64 ./cmd/peaks
-        CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o peaks-darwin-arm64 ./cmd/peaks
-        
-        # Windows
-        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o peaks-windows-amd64.exe ./cmd/peaks
-        CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o peaks-windows-arm64.exe ./cmd/peaks
+        go build -o peaks-linux-amd64 ./cmd/peaks
+        GOOS=windows go build -o peaks-windows-amd64.exe ./cmd/peaks
+        GOOS=darwin go build -o peaks-darwin-amd64 ./cmd/peaks
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
         files: |
           peaks-linux-amd64
-          peaks-linux-arm64
           peaks-darwin-amd64
-          peaks-darwin-arm64
           peaks-windows-amd64.exe
-          peaks-windows-arm64.exe
         generate_release_notes: true
         draft: false
         prerelease: false
