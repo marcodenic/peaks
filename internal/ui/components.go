@@ -14,10 +14,11 @@ import (
 
 // KeyMap defines the key bindings for the application
 type KeyMap struct {
-	Reset key.Binding
-	Pause key.Binding
-	Stats key.Binding
-	Quit  key.Binding
+	Reset       key.Binding
+	Pause       key.Binding
+	Stats       key.Binding
+	DisplayMode key.Binding
+	Quit        key.Binding
 }
 
 // DefaultKeyMap returns the default key bindings
@@ -34,6 +35,10 @@ func DefaultKeyMap() KeyMap {
 		Stats: key.NewBinding(
 			key.WithKeys("s"),
 			key.WithHelp("s", "toggle statusbar"),
+		),
+		DisplayMode: key.NewBinding(
+			key.WithKeys("m"),
+			key.WithHelp("m", "toggle display mode"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "esc", "ctrl+c"),

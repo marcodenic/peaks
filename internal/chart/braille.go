@@ -43,9 +43,15 @@ var (
 			Foreground(lipgloss.Color("#34D399")). // Green for download
 			Bold(true)
 
+	// Overlap style for overlay mode
+	overlapStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FCD34D")). // Yellow for overlap
+			Bold(true)
+
 	// Optimization: character cache for styled braille characters
 	uploadCharCache   = make(map[rune]string, 256)
 	downloadCharCache = make(map[rune]string, 256)
+	overlapCharCache  = make(map[rune]string, 256)
 )
 
 // BrailleChart creates beautiful braille-based charts for terminal display
@@ -63,6 +69,8 @@ type BrailleChart struct {
 	builder strings.Builder
 	// Optimization: pre-allocated slice for lines to avoid repeated allocations
 	lines []strings.Builder
+	// Display mode: false = split axis, true = overlay mode
+	overlayMode bool
 }
 
 // DataPoint represents a single measurement point
@@ -84,7 +92,8 @@ func NewBrailleChart(maxPoints int) *BrailleChart {
 		minHeight:    MinChartHeight,
 		currentMax:   0,
 		// Optimization: pre-allocate string builders
-		lines: make([]strings.Builder, 0, defaultMaxPoints), // Pre-allocate for typical chart heights
+		lines:       make([]strings.Builder, 0, defaultMaxPoints), // Pre-allocate for typical chart heights
+		overlayMode: false,                                        // Default to split axis mode
 	}
 }
 
@@ -102,6 +111,21 @@ func (bc *BrailleChart) SetHeight(height int) {
 	if bc.height < bc.minHeight {
 		bc.height = bc.minHeight
 	}
+}
+
+// SetOverlayMode sets the display mode
+func (bc *BrailleChart) SetOverlayMode(enabled bool) {
+	bc.overlayMode = enabled
+}
+
+// ToggleOverlayMode toggles between split axis and overlay mode
+func (bc *BrailleChart) ToggleOverlayMode() {
+	bc.overlayMode = !bc.overlayMode
+}
+
+// IsOverlayMode returns true if overlay mode is enabled
+func (bc *BrailleChart) IsOverlayMode() bool {
+	return bc.overlayMode
 }
 
 // AddDataPoint adds a new data point to the chart
@@ -291,8 +315,12 @@ func (bc *BrailleChart) Render() string {
 			download = bc.downloadData[dataIndex]
 		}
 
-		// Render this column
-		bc.renderColumn(x, upload, download, centerLine)
+		// Render this column based on display mode
+		if bc.overlayMode {
+			bc.renderColumnOverlay(x, upload, download)
+		} else {
+			bc.renderColumn(x, upload, download, centerLine)
+		}
 	}
 
 	// Combine all lines into final output
@@ -327,6 +355,31 @@ func (bc *BrailleChart) renderColumn(x int, upload, download uint64, centerLine 
 	// Render each row in this column
 	for y := 0; y < bc.height; y++ {
 		char := bc.createBrailleCharForLineSplit(y, uploadHeight, downloadHeight, halfHeight)
+		bc.lines[y].WriteString(char)
+	}
+}
+
+// renderColumnOverlay renders a single column in overlay mode
+func (bc *BrailleChart) renderColumnOverlay(x int, upload, download uint64) {
+	// Calculate heights for upload and download from bottom of chart
+	fullHeight := bc.height * brailleDots
+	maxValueFloat := float64(bc.maxValue)
+	fullHeightFloat := float64(fullHeight)
+
+	uploadHeight := int(float64(upload) / maxValueFloat * fullHeightFloat)
+	downloadHeight := int(float64(download) / maxValueFloat * fullHeightFloat)
+
+	// Clamp values
+	if uploadHeight > fullHeight {
+		uploadHeight = fullHeight
+	}
+	if downloadHeight > fullHeight {
+		downloadHeight = fullHeight
+	}
+
+	// Render each row in this column
+	for y := 0; y < bc.height; y++ {
+		char := bc.createBrailleCharForOverlay(y, uploadHeight, downloadHeight, fullHeight)
 		bc.lines[y].WriteString(char)
 	}
 }
@@ -399,6 +452,91 @@ func (bc *BrailleChart) createBrailleCharForLineSplit(line, uploadHeight, downlo
 	return string(char)
 }
 
+// createBrailleCharForOverlay creates a braille character for overlay mode
+func (bc *BrailleChart) createBrailleCharForOverlay(line, uploadHeight, downloadHeight, fullHeight int) string {
+	// Optimization: early return for empty characters
+	if uploadHeight == 0 && downloadHeight == 0 {
+		return " "
+	}
+
+	// Base braille character
+	base := brailleBase
+	var uploadDots, downloadDots int
+
+	// Calculate the vertical range of this braille character
+	// Line 0 is at the top, but we fill from bottom
+	lineTop := line * brailleDots
+
+	// Check each dot position in this braille character (4 dots vertically)
+	for dotRow := 0; dotRow < brailleDots; dotRow++ {
+		// Calculate the absolute dot position in the chart (from top)
+		absoluteDotPos := lineTop + dotRow
+
+		// Convert to distance from bottom
+		distanceFromBottom := fullHeight - absoluteDotPos
+
+		// Check if this dot should be filled for upload
+		if distanceFromBottom <= uploadHeight {
+			uploadDots |= dotPatterns[dotRow]
+		}
+
+		// Check if this dot should be filled for download
+		if distanceFromBottom <= downloadHeight {
+			downloadDots |= dotPatterns[dotRow]
+		}
+	}
+
+	// Determine final dots and styling
+	overlapDots := uploadDots & downloadDots
+	uploadOnlyDots := uploadDots & ^downloadDots
+	downloadOnlyDots := downloadDots & ^uploadDots
+
+	// Optimization: skip character creation if no dots
+	if uploadDots == 0 && downloadDots == 0 {
+		return " "
+	}
+
+	// Create characters for each type
+	var result strings.Builder
+
+	// If there's overlap, render the overlap in yellow
+	if overlapDots != 0 {
+		overlapChar := rune(base + overlapDots)
+		result.WriteString(bc.getStyledCharOverlay(overlapChar, "overlap"))
+	}
+
+	// Render upload-only dots in red
+	if uploadOnlyDots != 0 {
+		uploadChar := rune(base + uploadOnlyDots)
+		result.WriteString(bc.getStyledCharOverlay(uploadChar, "upload"))
+	}
+
+	// Render download-only dots in green
+	if downloadOnlyDots != 0 {
+		downloadChar := rune(base + downloadOnlyDots)
+		result.WriteString(bc.getStyledCharOverlay(downloadChar, "download"))
+	}
+
+	// For overlapping positions, we need to combine the characters
+	// Since we can't actually overlay characters, we'll prioritize overlap color
+	if overlapDots != 0 {
+		char := rune(base + (uploadDots | downloadDots))
+		return bc.getStyledCharOverlay(char, "overlap")
+	} else if uploadDots != 0 && downloadDots != 0 {
+		// Both present but no overlap at dot level - shouldn't happen in overlay mode
+		char := rune(base + (uploadDots | downloadDots))
+		return bc.getStyledCharOverlay(char, "overlap")
+	} else if uploadDots != 0 {
+		char := rune(base + uploadDots)
+		return bc.getStyledCharOverlay(char, "upload")
+	} else if downloadDots != 0 {
+		char := rune(base + downloadDots)
+		return bc.getStyledCharOverlay(char, "download")
+	}
+
+	return " "
+}
+
 // getStyledChar returns a cached styled character or creates and caches it
 func (bc *BrailleChart) getStyledChar(char rune, isUpload bool) string {
 	if isUpload {
@@ -415,6 +553,35 @@ func (bc *BrailleChart) getStyledChar(char rune, isUpload bool) string {
 		styled := downloadStyle.Render(string(char))
 		downloadCharCache[char] = styled
 		return styled
+	}
+}
+
+// getStyledCharOverlay returns a cached styled character for overlay mode
+func (bc *BrailleChart) getStyledCharOverlay(char rune, mode string) string {
+	switch mode {
+	case "upload":
+		if cached, exists := uploadCharCache[char]; exists {
+			return cached
+		}
+		styled := uploadStyle.Render(string(char))
+		uploadCharCache[char] = styled
+		return styled
+	case "download":
+		if cached, exists := downloadCharCache[char]; exists {
+			return cached
+		}
+		styled := downloadStyle.Render(string(char))
+		downloadCharCache[char] = styled
+		return styled
+	case "overlap":
+		if cached, exists := overlapCharCache[char]; exists {
+			return cached
+		}
+		styled := overlapStyle.Render(string(char))
+		overlapCharCache[char] = styled
+		return styled
+	default:
+		return string(char)
 	}
 }
 
