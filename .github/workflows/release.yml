@@ -25,6 +25,13 @@ jobs:
     - name: Run tests
       run: go test -v ./...
 
+    - name: Debug directory structure
+      run: |
+        pwd
+        ls -la
+        ls -la cmd/
+        ls -la cmd/peaks/
+
     - name: Build binaries
       run: |
         # Linux
