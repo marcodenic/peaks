@@ -27,55 +27,30 @@ A modern, real-time bandwidth monitoring tool for your terminal with high-resolu
 ### Prerequisites
 - A terminal with Unicode and color support
 
-### Quick Install
-
-**Method 1: Using Go (Recommended)**
+### Using Go (Recommended)
 ```bash
-# Install directly from GitHub
 go install github.com/marcodenic/peaks@latest
-
-# Run it
-peaks
 ```
 
-**Method 2: Download Pre-built Binary**
-```bash
-# Download and install using our install script
-curl -sSL https://raw.githubusercontent.com/marcodenic/peaks/main/install.sh | bash
-```
-
-**Method 3: Manual Download**
+### Manual Download
 1. Go to [Releases](https://github.com/marcodenic/peaks/releases)
 2. Download the binary for your platform
 3. Make it executable: `chmod +x peaks-*`
 4. Move to your PATH: `sudo mv peaks-* /usr/local/bin/peaks`
 
-**Method 4: Build from Source**
+### Using Install Script
+```bash
+# Download and install using our install script
+curl -sSL https://raw.githubusercontent.com/marcodenic/peaks/main/install.sh | bash
+```
+
+### Build from Source
 ```bash
 git clone https://github.com/marcodenic/peaks
 cd peaks
-go build -o peaks ./cmd/peaks
+go build -o peaks
 ./peaks
 ```
-
-**Using Make**
-```bash
-make build      # Build for current platform
-make build-all  # Build for all platforms
-make run        # Run directly
-```
-
-### Cross-Platform Builds
-
-Build for all platforms:
-```bash
-make build-all
-```
-
-This creates binaries for:
-- Linux: `peaks_unix`
-- Windows: `peaks.exe`
-- macOS: `peaks_darwin`
 
 ## 🎮 Usage
 
