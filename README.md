@@ -186,7 +186,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **Interactive Controls**: Pause, reset, toggle stats, and more
 - **Detailed Statistics**: Track uptime, peaks, and totals
 - **Responsive Design**: Adapts to terminal size automatically
-- **1-Minute History**: Shows 60 seconds of bandwidth data at 500ms intervals
+- **1-Minute+ History**: Shows bandwidth data for the full terminal width with dynamic history scaling
 
 ## 🚀 Installation
 

@@ -113,6 +113,42 @@ func (bc *BrailleChart) SetHeight(height int) {
 	}
 }
 
+// SetMaxPoints updates the maximum number of data points to maintain
+// If reducing the limit, excess data is trimmed from the beginning
+func (bc *BrailleChart) SetMaxPoints(maxPoints int) {
+	if maxPoints <= 0 {
+		return
+	}
+
+	oldMaxPoints := bc.maxPoints
+	bc.maxPoints = maxPoints
+
+	// If reducing the limit, trim excess data
+	if maxPoints < oldMaxPoints {
+		// Trim upload data if necessary
+		if len(bc.uploadData) > maxPoints {
+			bc.uploadData = bc.uploadData[len(bc.uploadData)-maxPoints:]
+		}
+		// Trim download data if necessary
+		if len(bc.downloadData) > maxPoints {
+			bc.downloadData = bc.downloadData[len(bc.downloadData)-maxPoints:]
+		}
+		// Recalculate max value after trimming
+		bc.recalculateMax()
+	}
+
+	// Update the capacity of the pre-allocated slices if needed
+	if maxPoints > cap(bc.uploadData) {
+		newUploadData := make([]uint64, len(bc.uploadData), maxPoints)
+		copy(newUploadData, bc.uploadData)
+		bc.uploadData = newUploadData
+
+		newDownloadData := make([]uint64, len(bc.downloadData), maxPoints)
+		copy(newDownloadData, bc.downloadData)
+		bc.downloadData = newDownloadData
+	}
+}
+
 // SetOverlayMode sets the display mode
 func (bc *BrailleChart) SetOverlayMode(enabled bool) {
 	bc.overlayMode = enabled

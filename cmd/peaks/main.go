@@ -40,9 +40,21 @@ import (
 const (
 	// Update frequency for bandwidth monitoring
 	updateInterval = 500 * time.Millisecond
-	// Maximum data points to keep for the chart (60 seconds at 2 FPS)
-	maxDataPoints = 120
+	// Default data points for initial chart creation
+	defaultDataPoints = 200
 )
+
+// calculateMaxDataPoints calculates the optimal number of data points
+// to maintain based on terminal width, ensuring the chart always fills
+// the available space while maintaining some buffer for window resizing
+func calculateMaxDataPoints(terminalWidth int) int {
+	if terminalWidth <= 0 {
+		return defaultDataPoints
+	}
+	// Keep enough history to fill the terminal width plus 50% buffer
+	// for smooth scrolling and window resizing
+	return int(float64(terminalWidth) * 1.5)
+}
 
 // tickMsg represents a tick message for updating the display
 type tickMsg time.Time
@@ -78,7 +90,7 @@ type model struct {
 func initialModel() model {
 	m := model{
 		monitor: monitor.NewBandwidthMonitor(),
-		chart:   chart.NewBrailleChart(maxDataPoints),
+		chart:   chart.NewBrailleChart(defaultDataPoints),
 		ui:      ui.NewComponents(),
 		keys:    ui.DefaultKeyMap(),
 	}
@@ -126,6 +138,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.ready = true
+
+		// Calculate new max data points based on terminal width
+		newMaxPoints := calculateMaxDataPoints(m.width)
+		m.chart.SetMaxPoints(newMaxPoints)
 
 		// Update chart dimensions
 		chartHeight := m.height - 2 // Leave room for title and status
