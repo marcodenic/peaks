@@ -192,6 +192,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.displayMode = "split"
 				m.chart.SetOverlayMode(false)
 			}
+
+		case key.Matches(msg, m.keys.ScalingMode):
+			// Cycle through scaling modes
+			m.chart.CycleScalingMode()
 		}
 
 	case tickMsg:
