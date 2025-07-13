@@ -28,6 +28,8 @@ type BrailleChart struct {
 	overlayMode bool
 	// Scaling mode: how the data is scaled (linear, logarithmic, square root)
 	scalingMode ScalingMode
+	// Time scale: the time window for data display
+	timeScale TimeScale
 }
 
 // NewBrailleChart creates a new braille chart
@@ -46,6 +48,7 @@ func NewBrailleChart(maxPoints int) *BrailleChart {
 		lines:       make([]strings.Builder, 0, defaultMaxPoints), // Pre-allocate for typical chart heights
 		overlayMode: false,                                        // Default to split axis mode
 		scalingMode: ScalingLogarithmic,                          // Default to logarithmic scaling
+		timeScale:   TimeScale1Min,                               // Default to 1 minute time scale
 	}
 }
 
@@ -78,6 +81,11 @@ func (bc *BrailleChart) ToggleOverlayMode() {
 // IsOverlayMode returns true if overlay mode is enabled
 func (bc *BrailleChart) IsOverlayMode() bool {
 	return bc.overlayMode
+}
+
+// GetWidth returns the chart width
+func (bc *BrailleChart) GetWidth() int {
+	return bc.width
 }
 
 // Render renders the braille chart as a string
@@ -113,7 +121,8 @@ func (bc *BrailleChart) Render() string {
 
 	// Calculate data points per character
 	dataLen := len(bc.uploadData)
-	if downloadLen := len(bc.downloadData); downloadLen > dataLen {
+	downloadLen := len(bc.downloadData)
+	if downloadLen > dataLen {
 		dataLen = downloadLen
 	}
 
@@ -121,26 +130,32 @@ func (bc *BrailleChart) Render() string {
 		return bc.renderEmptyChart()
 	}
 
-	// Render each column
-	for x := 0; x < chartWidth; x++ {
-		// Calculate which data point this column represents (scrolling from right)
-		dataIndex := dataLen - (chartWidth - x)
+	// Use different rendering approaches based on time scale
+	if bc.timeScale == TimeScale1Min {
+		// Original 1:1 rendering for 1-minute scale (no aggregation)
+		for x := 0; x < chartWidth; x++ {
+			// Calculate which data point this column represents (scrolling from right)
+			dataIndex := dataLen - (chartWidth - x)
 
-		// Get upload and download values for this column
-		var upload, download uint64
-		if dataIndex >= 0 && dataIndex < len(bc.uploadData) {
-			upload = bc.uploadData[dataIndex]
-		}
-		if dataIndex >= 0 && dataIndex < len(bc.downloadData) {
-			download = bc.downloadData[dataIndex]
-		}
+			// Get upload and download values for this column
+			var upload, download uint64
+			if dataIndex >= 0 && dataIndex < len(bc.uploadData) {
+				upload = bc.uploadData[dataIndex]
+			}
+			if dataIndex >= 0 && dataIndex < len(bc.downloadData) {
+				download = bc.downloadData[dataIndex]
+			}
 
-		// Render this column based on display mode
-		if bc.overlayMode {
-			bc.renderColumnOverlay(x, upload, download)
-		} else {
-			bc.renderColumn(x, upload, download, centerLine)
+			// Render this column based on display mode
+			if bc.overlayMode {
+				bc.renderColumnOverlay(x, upload, download)
+			} else {
+				bc.renderColumn(x, upload, download, centerLine)
+			}
 		}
+	} else {
+		// Window-based aggregation for larger time scales
+		bc.renderWithTimeWindows(chartWidth, centerLine)
 	}
 
 	// Combine all lines into final output
@@ -167,4 +182,78 @@ func (bc *BrailleChart) renderEmptyChart() string {
 	}
 
 	return bc.builder.String()
+}
+
+// renderWithTimeWindows renders the chart using fixed time windows for larger time scales
+func (bc *BrailleChart) renderWithTimeWindows(chartWidth, centerLine int) {
+	// Calculate window size (how many data points per column)
+	timeScaleSeconds := bc.GetTimeScaleSeconds()
+	windowSize := timeScaleSeconds / 60 // Each window represents this many data points
+	if windowSize < 1 {
+		windowSize = 1
+	}
+
+	dataLen := len(bc.uploadData)
+	downloadLen := len(bc.downloadData)
+	if downloadLen > dataLen {
+		dataLen = downloadLen
+	}
+
+	if dataLen == 0 {
+		// No data, render empty columns
+		for x := 0; x < chartWidth; x++ {
+			if bc.overlayMode {
+				bc.renderColumnOverlay(x, 0, 0)
+			} else {
+				bc.renderColumn(x, 0, 0, centerLine)
+			}
+		}
+		return
+	}
+
+	// The key insight: larger time scales should scroll EXACTLY like 1-minute scale
+	// The rightmost column always shows the most recent data
+	// Each column represents a window of aggregated data
+	// Data scrolls from right to left as new data arrives
+
+	for x := 0; x < chartWidth; x++ {
+		// Calculate which data window this column represents
+		// x=0 is leftmost, x=chartWidth-1 is rightmost (most recent)
+		// Work backwards from the most recent data
+		columnsFromRight := chartWidth - 1 - x
+		
+		// Calculate the data window for this column
+		// Each column represents 'windowSize' data points
+		windowEndIndex := dataLen - (columnsFromRight * windowSize)
+		windowStartIndex := windowEndIndex - windowSize
+		
+		// Aggregate data within this window (use maximum value)
+		var upload, download uint64
+
+		// Find max upload in this window
+		for i := windowStartIndex; i < windowEndIndex && i < len(bc.uploadData); i++ {
+			if i >= 0 && bc.uploadData[i] > upload {
+				upload = bc.uploadData[i]
+			}
+		}
+
+		// Find max download in this window
+		for i := windowStartIndex; i < windowEndIndex && i < len(bc.downloadData); i++ {
+			if i >= 0 && bc.downloadData[i] > download {
+				download = bc.downloadData[i]
+			}
+		}
+
+		// Render this column based on display mode
+		if bc.overlayMode {
+			bc.renderColumnOverlay(x, upload, download)
+		} else {
+			bc.renderColumn(x, upload, download, centerLine)
+		}
+	}
+}
+
+// SetTimeScale sets the time scale directly (for debugging)
+func (bc *BrailleChart) SetTimeScale(timeScale TimeScale) {
+	bc.timeScale = timeScale
 }

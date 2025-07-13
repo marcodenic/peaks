@@ -20,6 +20,9 @@
 //	p/Space:  Pause/Resume
 //	r:        Reset chart and statistics
 //	s:        Toggle statusbar
+//	m:        Toggle display mode (split/overlay)
+//	l:        Cycle scaling mode (linear/logarithmic/square root)
+//	t:        Cycle time scale (1/3/5/10/15/30/60 minutes)
 package main
 
 import (
@@ -88,9 +91,14 @@ type model struct {
 
 // initialModel creates and initializes the application model
 func initialModel() model {
+	chart := chart.NewBrailleChart(defaultDataPoints)
+	// Always store 60 minutes of data to support any time scale
+	maxDataPoints := 60 * 60 * 2 // 60 minutes * 60 seconds * 2 points per second  
+	chart.SetMaxPoints(maxDataPoints)
+	
 	m := model{
 		monitor: monitor.NewBandwidthMonitor(),
-		chart:   chart.NewBrailleChart(defaultDataPoints),
+		chart:   chart,
 		ui:      ui.NewComponents(),
 		keys:    ui.DefaultKeyMap(),
 	}
@@ -139,11 +147,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.ready = true
 
-		// Calculate new max data points based on terminal width
-		newMaxPoints := calculateMaxDataPoints(m.width)
-		m.chart.SetMaxPoints(newMaxPoints)
+		// Always store 60 minutes of data (regardless of selected time scale)
+		// This ensures we have enough data for any time scale selection
+		maxDataPoints := 60 * 60 * 2 // 60 minutes * 60 seconds * 2 points per second
+		m.chart.SetMaxPoints(maxDataPoints)
 
-		// Update chart dimensions
+		// Update chart dimensions (always responsive to terminal width)
 		chartHeight := m.height - 2 // Leave room for title and status
 		if m.showStatusbar {
 			chartHeight -= 1 // Leave room for statusbar
@@ -196,6 +205,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.ScalingMode):
 			// Cycle through scaling modes
 			m.chart.CycleScalingMode()
+
+		case key.Matches(msg, m.keys.TimeScale):
+			// Cycle through time scales
+			m.chart.CycleTimeScale()
+			// No need to change max points - we always store 60 minutes of data
 		}
 
 	case tickMsg:
@@ -273,11 +287,12 @@ func (m *model) updateStatusbar() {
 		uploadArrowStyle.Render("↑"), totalUploadStyle.Render(fmt.Sprintf("%8s", totalUploadFormatted)),
 		downloadArrowStyle.Render("↓"), totalDownloadStyle.Render(fmt.Sprintf("%8s", totalDownloadFormatted)))
 
-	// Format uptime and display mode and scaling mode
-	uptimeValue := fmt.Sprintf("Up: %s | Mode: %s | Scale: %s",
+	// Format uptime and display mode and scaling mode and time scale
+	uptimeValue := fmt.Sprintf("Up: %s | Mode: %s | Scale: %s | Time: %s",
 		ui.FormatDuration(stats.GetUptime()),
 		m.displayMode,
-		m.chart.GetScalingModeName())
+		m.chart.GetScalingModeName(),
+		m.chart.GetTimeScaleName())
 
 	m.statusbar.SetContent(currentRates, peakValues, totalValues, uptimeValue)
 }
@@ -320,9 +335,9 @@ func (m model) View() string {
 		helpStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#6B7280"))
 
-		controls := "r: reset • p: pause • s: statusbar • m: mode • l: scaling • q: quit"
+		controls := "r: reset • p: pause • s: statusbar • m: mode • l: scaling • t: time • q: quit"
 		if m.paused {
-			controls = "r: reset • p: resume • s: statusbar • m: mode • l: scaling • q: quit"
+			controls = "r: reset • p: resume • s: statusbar • m: mode • l: scaling • t: time • q: quit"
 		}
 
 		view.WriteString(helpStyle.Render(controls))

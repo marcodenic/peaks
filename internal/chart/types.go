@@ -30,6 +30,19 @@ const (
 	ScalingSquareRoot
 )
 
+// TimeScale defines the time window for data display
+type TimeScale int
+
+const (
+	TimeScale1Min  TimeScale = iota // 1 minute (60 seconds)
+	TimeScale3Min                   // 3 minutes (180 seconds) 
+	TimeScale5Min                   // 5 minutes (300 seconds)
+	TimeScale10Min                  // 10 minutes (600 seconds)
+	TimeScale15Min                  // 15 minutes (900 seconds)
+	TimeScale30Min                  // 30 minutes (1800 seconds)
+	TimeScale60Min                  // 60 minutes (3600 seconds)
+)
+
 // ColorGradient represents a color gradient configuration
 type ColorGradient struct {
 	Steps []lipgloss.Color

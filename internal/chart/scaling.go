@@ -72,3 +72,81 @@ func (bc *BrailleChart) GetScalingModeName() string {
 		return "Unknown"
 	}
 }
+
+// GetTimeScale returns the current time scale
+func (bc *BrailleChart) GetTimeScale() TimeScale {
+	return bc.timeScale
+}
+
+// CycleTimeScale cycles through available time scales
+func (bc *BrailleChart) CycleTimeScale() TimeScale {
+	switch bc.timeScale {
+	case TimeScale1Min:
+		bc.timeScale = TimeScale3Min
+	case TimeScale3Min:
+		bc.timeScale = TimeScale5Min
+	case TimeScale5Min:
+		bc.timeScale = TimeScale10Min
+	case TimeScale10Min:
+		bc.timeScale = TimeScale15Min
+	case TimeScale15Min:
+		bc.timeScale = TimeScale30Min
+	case TimeScale30Min:
+		bc.timeScale = TimeScale60Min
+	case TimeScale60Min:
+		bc.timeScale = TimeScale1Min
+	default:
+		bc.timeScale = TimeScale1Min
+	}
+	return bc.timeScale
+}
+
+// GetTimeScaleName returns a human-readable name for the current time scale
+func (bc *BrailleChart) GetTimeScaleName() string {
+	switch bc.timeScale {
+	case TimeScale1Min:
+		return "1m"
+	case TimeScale3Min:
+		return "3m"
+	case TimeScale5Min:
+		return "5m"
+	case TimeScale10Min:
+		return "10m"
+	case TimeScale15Min:
+		return "15m"
+	case TimeScale30Min:
+		return "30m"
+	case TimeScale60Min:
+		return "60m"
+	default:
+		return "1m"
+	}
+}
+
+// GetTimeScaleSeconds returns the number of seconds for the current time scale
+func (bc *BrailleChart) GetTimeScaleSeconds() int {
+	switch bc.timeScale {
+	case TimeScale1Min:
+		return 60
+	case TimeScale3Min:
+		return 180
+	case TimeScale5Min:
+		return 300
+	case TimeScale10Min:
+		return 600
+	case TimeScale15Min:
+		return 900
+	case TimeScale30Min:
+		return 1800
+	case TimeScale60Min:
+		return 3600
+	default:
+		return 60
+	}
+}
+
+// GetTimeScaleMaxPoints calculates the maximum data points needed for the current time scale
+// Given that data is collected every 500ms (0.5 seconds), we need 2 points per second
+func (bc *BrailleChart) GetTimeScaleMaxPoints() int {
+	return bc.GetTimeScaleSeconds() * 2 // 2 data points per second (500ms intervals)
+}

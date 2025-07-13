@@ -19,6 +19,7 @@ type KeyMap struct {
 	Stats       key.Binding
 	DisplayMode key.Binding
 	ScalingMode key.Binding
+	TimeScale   key.Binding
 	Quit        key.Binding
 }
 
@@ -44,6 +45,10 @@ func DefaultKeyMap() KeyMap {
 		ScalingMode: key.NewBinding(
 			key.WithKeys("l"),
 			key.WithHelp("l", "cycle scaling mode"),
+		),
+		TimeScale: key.NewBinding(
+			key.WithKeys("t"),
+			key.WithHelp("t", "cycle time scale"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "esc", "ctrl+c"),
