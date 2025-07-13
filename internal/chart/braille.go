@@ -81,7 +81,21 @@ var (
 		},
 	}
 
-	// Overlap style for overlay mode
+	// Yellow gradient for overlay overlap areas (dark to light from top to bottom)
+	overlapGradient = ColorGradient{
+		Steps: []lipgloss.Color{
+			lipgloss.Color("#713F12"), // Very dark yellow/brown (darkest)
+			lipgloss.Color("#92400E"), // Dark yellow
+			lipgloss.Color("#B45309"), // Medium-dark yellow
+			lipgloss.Color("#D97706"), // Medium yellow
+			lipgloss.Color("#F59E0B"), // Medium-light yellow
+			lipgloss.Color("#FBBF24"), // Light yellow
+			lipgloss.Color("#FCD34D"), // Very light yellow
+			lipgloss.Color("#FDE68A"), // Extremely light yellow (lightest)
+		},
+	}
+
+	// Overlap style for overlay mode (fallback style)
 	overlapStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FCD34D")). // Yellow for overlap
 			Bold(true)
@@ -275,6 +289,24 @@ func (bc *BrailleChart) scaleValue(value uint64, maxValue uint64) float64 {
 	}
 }
 
+// clampPercent clamps a value to the 0-1 range
+func clampPercent(value float64) float64 {
+	return math.Max(0, math.Min(1, value))
+}
+
+// getGradientStepIndex calculates the gradient step index for a given height percentage
+func getGradientStepIndex(heightPercent float64, stepCount int) int {
+	// Invert the gradient position: 0.0 (bottom) = lightest, 1.0 (top) = darkest
+	invertedPercent := 1.0 - clampPercent(heightPercent)
+
+	// Map to gradient step
+	stepIndex := int(invertedPercent * float64(stepCount-1))
+	if stepIndex >= stepCount {
+		stepIndex = stepCount - 1
+	}
+	return stepIndex
+}
+
 // getGradientColor returns a color from the gradient based on height percentage
 func (bc *BrailleChart) getGradientColor(heightPercent float64, isUpload bool) lipgloss.Color {
 	gradient := downloadGradient
@@ -282,15 +314,7 @@ func (bc *BrailleChart) getGradientColor(heightPercent float64, isUpload bool) l
 		gradient = uploadGradient
 	}
 
-	// Clamp height percentage to 0-1
-	if heightPercent < 0 {
-		heightPercent = 0
-	}
-	if heightPercent > 1 {
-		heightPercent = 1
-	}
-
-	// Calculate which gradient step to use
+	// Check if gradient is available
 	stepCount := len(gradient.Steps)
 	if stepCount == 0 {
 		if isUpload {
@@ -299,17 +323,8 @@ func (bc *BrailleChart) getGradientColor(heightPercent float64, isUpload bool) l
 		return baseDownloadColor
 	}
 
-	// INVERT the gradient position so that 0.0 = lightest, 1.0 = darkest
-	// This makes 0.0 (closest to axis) use the last (lightest) color in array
-	// and 1.0 (furthest from axis) use the first (darkest) color in array
-	invertedPercent := 1.0 - heightPercent
-
-	// Map inverted height percentage to gradient step
-	stepIndex := int(invertedPercent * float64(stepCount-1))
-	if stepIndex >= stepCount {
-		stepIndex = stepCount - 1
-	}
-
+	// Get gradient step index and return color
+	stepIndex := getGradientStepIndex(heightPercent, stepCount)
 	return gradient.Steps[stepIndex]
 }
 
@@ -349,52 +364,19 @@ func (bc *BrailleChart) getStyledCharWithGradient(char rune, heightPercent float
 
 // getStyledCharWithOverlapGradient returns a styled character with yellow overlap gradient coloring
 func (bc *BrailleChart) getStyledCharWithOverlapGradient(char rune, heightPercent float64) string {
-	// Create yellow gradient (lighter at bottom, darker at top) with more dramatic differences
-	yellowGradient := ColorGradient{
-		Steps: []lipgloss.Color{
-			lipgloss.Color("#713F12"), // Very dark yellow/brown (darkest)
-			lipgloss.Color("#92400E"), // Dark yellow
-			lipgloss.Color("#B45309"), // Medium-dark yellow
-			lipgloss.Color("#D97706"), // Medium yellow
-			lipgloss.Color("#F59E0B"), // Medium-light yellow
-			lipgloss.Color("#FBBF24"), // Light yellow
-			lipgloss.Color("#FCD34D"), // Very light yellow
-			lipgloss.Color("#FDE68A"), // Extremely light yellow (lightest)
-		},
-	}
-
-	// Clamp height percentage to 0-1
-	if heightPercent < 0 {
-		heightPercent = 0
-	}
-	if heightPercent > 1 {
-		heightPercent = 1
-	}
-
-	// Calculate which gradient step to use
-	stepCount := len(yellowGradient.Steps)
+	// Check if gradient is available
+	stepCount := len(overlapGradient.Steps)
 	if stepCount == 0 {
 		return overlapStyle.Render(string(char))
 	}
 
-	// INVERT the gradient position so that 0.0 = lightest, 1.0 = darkest
-	// This makes 0.0 (bottom) use the last (lightest) color in array
-	// and 1.0 (top) use the first (darkest) color in array
-	invertedPercent := 1.0 - heightPercent
-
-	// Map inverted height percentage to gradient step
-	stepIndex := int(invertedPercent * float64(stepCount-1))
-	if stepIndex >= stepCount {
-		stepIndex = stepCount - 1
-	}
-
-	color := yellowGradient.Steps[stepIndex]
-
-	// Create styled character
+	// Get gradient step index and color
+	stepIndex := getGradientStepIndex(heightPercent, stepCount)
+	color := overlapGradient.Steps[stepIndex]
+	
+	// Create and return styled character
 	style := lipgloss.NewStyle().Foreground(color).Bold(true)
-	styled := style.Render(string(char))
-
-	return styled
+	return style.Render(string(char))
 }
 
 // AddDataPoint adds a new data point to the chart
@@ -788,7 +770,7 @@ func (bc *BrailleChart) createBrailleCharForOverlay(line, uploadHeight, download
 	// We want: bottom = light (0.0), top = dark (1.0)
 	// Since line 0 is at the top and line (height-1) is at the bottom, we need to invert
 	gradientPos := 1.0 - (float64(lineTop + brailleDots/2) / float64(fullHeight-1))
-	
+
 	// Clamp gradient position
 	if gradientPos < 0 {
 		gradientPos = 0
