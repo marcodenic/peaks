@@ -2,11 +2,11 @@
 
 ![PEAKS Screenshot - Split Mode](peaks.png)
 
-*Split axis mode with upload below and download above the central axis*
+_Split axis mode with upload below and download above the central axis_
 
 ![PEAKS Screenshot - Overlay Mode](peaks-mode2.png)
 
-*Overlay mode with both charts combined at the bottom, showing yellow overlap*
+_Overlay mode with both charts combined at the bottom, showing yellow overlap_
 
 A modern, real-time bandwidth monitoring tool for your terminal with high-resolution braille charts and beautiful UI.
 
@@ -21,30 +21,37 @@ A modern, real-time bandwidth monitoring tool for your terminal with high-resolu
 - 🌐 **Cross-platform** - Works on Linux, macOS, and Windows
 - 🎯 **Dual display modes** - Switch between split axis and overlay modes
 - 🟡 **Smart overlap detection** - Yellow highlighting where upload and download overlap
+- 📈 **Advanced scaling modes** - Linear, logarithmic, and square root scaling for better data visualization
+- 🌈 **Gradient coloring** - Height-based color gradients make tall spikes lighter and more visually appealing
 
 ## 🚀 Installation
 
 ### Prerequisites
+
 - A terminal with Unicode and color support
 
 ### Using Go (Recommended)
+
 ```bash
 go install github.com/marcodenic/peaks@latest
 ```
 
 ### Manual Download
+
 1. Go to [Releases](https://github.com/marcodenic/peaks/releases)
 2. Download the binary for your platform
 3. Make it executable: `chmod +x peaks-*`
 4. Move to your PATH: `sudo mv peaks-* /usr/local/bin/peaks`
 
 ### Using Install Script
+
 ```bash
 # Download and install using our install script
 curl -sSL https://raw.githubusercontent.com/marcodenic/peaks/main/install.sh | bash
 ```
 
 ### Build from Source
+
 ```bash
 git clone https://github.com/marcodenic/peaks
 cd peaks
@@ -55,6 +62,7 @@ go build -o peaks
 ## 🎮 Usage
 
 Simply run the binary:
+
 ```bash
 ./peaks
 ```
@@ -62,10 +70,26 @@ Simply run the binary:
 ### Controls
 
 - **q** / **Ctrl+C** - Quit
-- **p** / **Space** - Pause/Resume monitoring  
+- **p** / **Space** - Pause/Resume monitoring
 - **r** - Reset chart and statistics
 - **s** - Toggle statusbar visibility
 - **m** - Toggle between split axis and overlay display modes
+- **l** - Cycle through scaling modes (Linear → Logarithmic → Square Root)
+
+### Scaling Modes
+
+PEAKS offers three different scaling modes to help visualize your bandwidth data:
+
+- **Linear** - Traditional linear scaling where chart height is proportional to bandwidth
+- **Logarithmic** (default) - Logarithmic scaling that compresses large spikes while preserving detail for smaller values
+- **Square Root** - Square root scaling that provides a middle ground between linear and logarithmic
+
+The logarithmic scaling mode is particularly useful when you have occasional large bandwidth spikes that would otherwise make smaller bandwidth usage invisible on a linear scale. It ensures that both high and low bandwidth periods are clearly visible in the chart.
+
+### Visual Enhancements
+
+- **Gradient Coloring** - Chart segments become lighter as they get taller, creating a beautiful visual effect where the tallest spikes are the lightest
+- **Height-based Shading** - Upload data uses a red gradient (dark red at bottom to light red at top) and download data uses a green gradient (dark green to light green)
 
 ## 📁 Project Structure
 
@@ -179,9 +203,9 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **Cross-platform**: Works on Linux, macOS, and Windows
 - **Split-Axis Charts**: Clear separation with upload below and download above the axis line
 - **Braille Charts**: High-resolution area charts using Unicode braille characters
-- **Color Coding**: 
+- **Color Coding**:
   - 🔴 Red for upload traffic
-  - 🟢 Green for download traffic  
+  - 🟢 Green for download traffic
   - 🟡 Yellow for overlapping traffic (overlay mode only)
 - **Interactive Controls**: Pause, reset, toggle stats, and more
 - **Detailed Statistics**: Track uptime, peaks, and totals
@@ -191,10 +215,12 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 🚀 Installation
 
 ### Prerequisites
+
 - Go 1.21 or higher
 - A terminal with Unicode and color support
 
 ### Build from Source
+
 ```bash
 git clone https://github.com/marcodenic/peaks
 cd peaks
@@ -204,30 +230,33 @@ go build -o peaks
 
 ## 🎮 Controls
 
-| Key | Action |
-|-----|--------|
-| `q` / `Ctrl+C` | Quit |
-| `p` / `Space` | Pause/Resume monitoring |
-| `r` | Reset chart and statistics |
-| `s` | Toggle statusbar |
-| `m` | Toggle display mode (split/overlay) |
+| Key            | Action                              |
+| -------------- | ----------------------------------- |
+| `q` / `Ctrl+C` | Quit                                |
+| `p` / `Space`  | Pause/Resume monitoring             |
+| `r`            | Reset chart and statistics          |
+| `s`            | Toggle statusbar                    |
+| `m`            | Toggle display mode (split/overlay) |
 
 ## 🖥️ Screenshots
 
 The tool offers two display modes:
 
 ### Split Axis Mode (Default)
+
 - Upload data displayed below the central horizontal axis (red)
 - Download data displayed above the central horizontal axis (green)
 - Clear separation between upload and download traffic
 
 ### Overlay Mode
+
 - Both upload and download charts displayed from the bottom axis
 - Upload and download data overlaid on the same chart area
 - Yellow highlighting where upload and download traffic overlap
 - Press `m` to toggle between modes
 
 Both modes display:
+
 - Real-time bandwidth rates in the footer
 - Optional statusbar with uptime, peaks, and totals
 - Live/paused status indicator
@@ -237,21 +266,25 @@ Both modes display:
 ## 🛠️ Technical Details
 
 ### Built With
+
 - **[Bubble Tea](https://github.com/charmbracelet/bubbletea)** - The Elm Architecture for Go TUI apps
 - **[Lip Gloss](https://github.com/charmbracelet/lipgloss)** - Style definitions for terminal layouts
 - **[Bubbles](https://github.com/charmbracelet/bubbles)** - Common UI components
 - **[gopsutil](https://github.com/shirou/gopsutil)** - Cross-platform system information
 
 ### Architecture
+
 - `main.go` - Main application and Bubble Tea model
 - `bandwidth.go` - Cross-platform bandwidth monitoring
 - `chart.go` - Braille chart rendering with color overlays
 - `ui.go` - Enhanced UI components and statistics
 
 ### Chart Rendering
+
 The tool uses Unicode braille characters (U+2800–U+28FF) for high-resolution terminal charts. Each character provides 8 dots in a 2×4 matrix, allowing for detailed visualization of bandwidth patterns.
 
 ### Color Mixing
+
 When upload and download traffic overlap in the same chart position, the visualization intelligently blends colors to show yellow, indicating simultaneous activity.
 
 ## 🎨 Customization
@@ -268,16 +301,19 @@ The tool uses modern terminal colors and should work well with most terminal the
 ## 🐛 Troubleshooting
 
 ### Braille Characters Not Displaying
+
 - Ensure your terminal font supports Unicode braille characters
 - Try fonts like: Cascadia Code, Fira Code, or DejaVu Sans Mono
 - On Windows, use Windows Terminal or a modern terminal emulator
 
 ### Colors Not Showing
+
 - Verify your terminal supports ANSI colors
 - Modern terminals (Terminal.app, iTerm2, Windows Terminal) should work fine
 - Legacy terminals may show limited colors
 
 ### Permission Issues
+
 - The tool only reads network interface statistics
 - No special permissions required on most systems
 - If issues persist, try running as administrator/sudo
@@ -289,12 +325,14 @@ We welcome contributions to Peaks! Please follow these guidelines:
 ### Development Setup
 
 1. **Fork and Clone**
+
    ```bash
    git clone https://github.com/marcodenic/peaks
    cd peaks
    ```
 
 2. **Install Dependencies**
+
    ```bash
    go mod tidy
    ```
@@ -322,6 +360,7 @@ We welcome contributions to Peaks! Please follow these guidelines:
 ### Reporting Issues
 
 Please use the GitHub issue tracker to report bugs or request features. Include:
+
 - Your operating system and terminal
 - Go version
 - Steps to reproduce the issue
@@ -339,4 +378,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-*Made with ❤️ and lots of ☕*
+_Made with ❤️ and lots of ☕_

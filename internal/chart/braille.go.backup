@@ -27,7 +27,7 @@ const (
 	defaultMaxPoints   = 50
 
 	// Scaling constants
-	logBase     = 10.0   // Base for logarithmic scaling
+	logBase     = 10.0 // Base for logarithmic scaling
 	minLogValue = 1024.0 // Minimum value for log scaling (1KB)
 )
 
@@ -87,8 +87,8 @@ var (
 			Bold(true)
 
 	// Optimization: character cache for styled braille characters
-	uploadCharCache   = make(map[string]string, 1536) // 6 gradient steps * 256 chars
-	downloadCharCache = make(map[string]string, 1536) // 6 gradient steps * 256 chars
+	uploadCharCache   = make(map[string]string, 1536)   // 6 gradient steps * 256 chars
+	downloadCharCache = make(map[string]string, 1536)   // 6 gradient steps * 256 chars
 	overlapCharCache  = make(map[rune]string, 256)
 )
 
@@ -253,23 +253,23 @@ func (bc *BrailleChart) scaleValue(value uint64, maxValue uint64) float64 {
 	switch bc.scalingMode {
 	case ScalingLinear:
 		return float64(value) / float64(maxValue)
-
+	
 	case ScalingLogarithmic:
 		// Ensure minimum value for log scaling
 		val := math.Max(float64(value), minLogValue)
 		maxVal := math.Max(float64(maxValue), minLogValue)
-
+		
 		// Apply logarithmic scaling
 		logVal := math.Log10(val)
 		logMax := math.Log10(maxVal)
 		logMin := math.Log10(minLogValue)
-
+		
 		// Normalize to 0-1 range
 		return (logVal - logMin) / (logMax - logMin)
-
+	
 	case ScalingSquareRoot:
 		return math.Sqrt(float64(value)) / math.Sqrt(float64(maxValue))
-
+	
 	default:
 		return float64(value) / float64(maxValue)
 	}
@@ -299,13 +299,8 @@ func (bc *BrailleChart) getGradientColor(heightPercent float64, isUpload bool) l
 		return baseDownloadColor
 	}
 
-	// INVERT the gradient position so that 0.0 = lightest, 1.0 = darkest
-	// This makes 0.0 (closest to axis) use the last (lightest) color in array
-	// and 1.0 (furthest from axis) use the first (darkest) color in array
-	invertedPercent := 1.0 - heightPercent
-
-	// Map inverted height percentage to gradient step
-	stepIndex := int(invertedPercent * float64(stepCount-1))
+	// Map height percentage to gradient step
+	stepIndex := int(heightPercent * float64(stepCount-1))
 	if stepIndex >= stepCount {
 		stepIndex = stepCount - 1
 	}
@@ -313,38 +308,494 @@ func (bc *BrailleChart) getGradientColor(heightPercent float64, isUpload bool) l
 	return gradient.Steps[stepIndex]
 }
 
-// getStyledCharWithGradient returns a styled character with gradient coloring
-func (bc *BrailleChart) getStyledCharWithGradient(char rune, heightPercent float64, isUpload bool) string {
-	color := bc.getGradientColor(heightPercent, isUpload)
+// ScalingMode defines how the chart scales data
+type ScalingMode int
 
-	// Create cache key
-	var cacheKey string
+const (
+	ScalingLinear ScalingMode = iota
+	ScalingLogarithmic
+	ScalingSquareRoot
+)
+
+// ColorGradient represents a color gradient configuration
+type ColorGradient struct {
+	Steps []lipgloss.Color
+}
+
+// Optimization: pre-calculated dot patterns as package constants
+var dotPatterns = [4]int{
+	0x01 | 0x08, // dots 0,3 (row 0)
+	0x02 | 0x10, // dots 1,4 (row 1)
+	0x04 | 0x20, // dots 2,5 (row 2)
+	0x40 | 0x80, // dots 6,7 (row 3)
+}
+
+var (
+	// Chart-specific styles for braille characters - base colors
+	baseUploadColor   = lipgloss.Color("#F87171") // Red for upload
+	baseDownloadColor = lipgloss.Color("#34D399") // Green for download
+
+	// Color gradients for height-based shading (lighter as they get taller)
+	uploadGradient = ColorGradient{
+		Steps: []lipgloss.Color{
+			lipgloss.Color("#7F1D1D"), // Dark red (bottom)
+			lipgloss.Color("#B91C1C"), // Medium-dark red
+			lipgloss.Color("#DC2626"), // Medium red
+			lipgloss.Color("#EF4444"), // Medium-light red
+			lipgloss.Color("#F87171"), // Light red
+			lipgloss.Color("#FCA5A5"), // Very light red (top)
+		},
+	}
+
+	downloadGradient = ColorGradient{
+		Steps: []lipgloss.Color{
+			lipgloss.Color("#064E3B"), // Dark green (bottom)
+			lipgloss.Color("#047857"), // Medium-dark green
+			lipgloss.Color("#059669"), // Medium green
+			lipgloss.Color("#10B981"), // Medium-light green
+			lipgloss.Color("#34D399"), // Light green
+			lipgloss.Color("#6EE7B7"), // Very light green (top)
+		},
+	}
+
+	// Overlap style for overlay mode
+	overlapStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FCD34D")). // Yellow for overlap
+			Bold(true)
+
+	// Optimization: character cache for styled braille characters
+	uploadCharCache   = make(map[string]string, 1536)   // 6 gradient steps * 256 chars
+	downloadCharCache = make(map[string]string, 1536)   // 6 gradient steps * 256 chars
+	overlapCharCache  = make(map[rune]string, 256)
+)
+
+// BrailleChart creates beautiful braille-based charts for terminal display
+type BrailleChart struct {
+	width        int
+	height       int
+	maxPoints    int
+	uploadData   []uint64
+	downloadData []uint64
+	maxValue     uint64
+	minHeight    int
+	// Optimization: track current max without full recalculation
+	currentMax uint64
+	// Optimization: pre-allocated string builder for rendering
+	builder strings.Builder
+	// Optimization: pre-allocated slice for lines to avoid repeated allocations
+	lines []strings.Builder
+	// Display mode: false = split axis, true = overlay mode
+	overlayMode bool
+	// Scaling mode: how the data is scaled (linear, logarithmic, square root)
+	scalingMode ScalingMode
+}
+
+// DataPoint represents a single measurement point
+type DataPoint struct {
+	Upload   uint64
+	Download uint64
+}
+
+// NewBrailleChart creates a new braille chart
+func NewBrailleChart(maxPoints int) *BrailleChart {
+	return &BrailleChart{
+		width:     defaultChartWidth,
+		height:    defaultChartHeight,
+		maxPoints: maxPoints,
+		// Optimization: pre-allocate slices with fixed capacity to avoid reallocations
+		uploadData:   make([]uint64, 0, maxPoints),
+		downloadData: make([]uint64, 0, maxPoints),
+		maxValue:     1024, // Start with 1KB minimum scale
+		minHeight:    MinChartHeight,
+		currentMax:   0,
+		// Optimization: pre-allocate string builders
+		lines:       make([]strings.Builder, 0, defaultMaxPoints), // Pre-allocate for typical chart heights
+		overlayMode: false,                                        // Default to split axis mode
+		scalingMode: ScalingLogarithmic,                          // Default to logarithmic scaling
+	}
+}
+
+// SetWidth sets the chart width
+func (bc *BrailleChart) SetWidth(width int) {
+	bc.width = width
+	if bc.width < 20 {
+		bc.width = 20
+	}
+}
+
+// SetHeight sets the chart height
+func (bc *BrailleChart) SetHeight(height int) {
+	bc.height = height
+	if bc.height < bc.minHeight {
+		bc.height = bc.minHeight
+	}
+}
+
+// SetMaxPoints updates the maximum number of data points to maintain
+// If reducing the limit, excess data is trimmed from the beginning
+func (bc *BrailleChart) SetMaxPoints(maxPoints int) {
+	if maxPoints <= 0 {
+		return
+	}
+
+	oldMaxPoints := bc.maxPoints
+	bc.maxPoints = maxPoints
+
+	// If reducing the limit, trim excess data
+	if maxPoints < oldMaxPoints {
+		// Trim upload data if necessary
+		if len(bc.uploadData) > maxPoints {
+			bc.uploadData = bc.uploadData[len(bc.uploadData)-maxPoints:]
+		}
+		// Trim download data if necessary
+		if len(bc.downloadData) > maxPoints {
+			bc.downloadData = bc.downloadData[len(bc.downloadData)-maxPoints:]
+		}
+		// Recalculate max value after trimming
+		bc.recalculateMax()
+	}
+
+	// Update the capacity of the pre-allocated slices if needed
+	if maxPoints > cap(bc.uploadData) {
+		newUploadData := make([]uint64, len(bc.uploadData), maxPoints)
+		copy(newUploadData, bc.uploadData)
+		bc.uploadData = newUploadData
+
+		newDownloadData := make([]uint64, len(bc.downloadData), maxPoints)
+		copy(newDownloadData, bc.downloadData)
+		bc.downloadData = newDownloadData
+	}
+}
+
+// SetOverlayMode sets the display mode
+func (bc *BrailleChart) SetOverlayMode(enabled bool) {
+	bc.overlayMode = enabled
+}
+
+// ToggleOverlayMode toggles between split axis and overlay mode
+func (bc *BrailleChart) ToggleOverlayMode() {
+	bc.overlayMode = !bc.overlayMode
+}
+
+// IsOverlayMode returns true if overlay mode is enabled
+func (bc *BrailleChart) IsOverlayMode() bool {
+	return bc.overlayMode
+}
+
+// SetScalingMode sets the scaling mode for the chart
+func (bc *BrailleChart) SetScalingMode(mode ScalingMode) {
+	bc.scalingMode = mode
+}
+
+// GetScalingMode returns the current scaling mode
+func (bc *BrailleChart) GetScalingMode() ScalingMode {
+	return bc.scalingMode
+}
+
+// CycleScalingMode cycles through available scaling modes
+func (bc *BrailleChart) CycleScalingMode() ScalingMode {
+	switch bc.scalingMode {
+	case ScalingLinear:
+		bc.scalingMode = ScalingLogarithmic
+	case ScalingLogarithmic:
+		bc.scalingMode = ScalingSquareRoot
+	case ScalingSquareRoot:
+		bc.scalingMode = ScalingLinear
+	default:
+		bc.scalingMode = ScalingLinear
+	}
+	return bc.scalingMode
+}
+
+// GetScalingModeName returns a human-readable name for the current scaling mode
+func (bc *BrailleChart) GetScalingModeName() string {
+	switch bc.scalingMode {
+	case ScalingLinear:
+		return "Linear"
+	case ScalingLogarithmic:
+		return "Logarithmic"
+	case ScalingSquareRoot:
+		return "Square Root"
+	default:
+		return "Unknown"
+	}
+}
+
+// scaleValue applies the current scaling mode to a value
+func (bc *BrailleChart) scaleValue(value uint64, maxValue uint64) float64 {
+	if value == 0 {
+		return 0
+	}
+
+	switch bc.scalingMode {
+	case ScalingLinear:
+		return float64(value) / float64(maxValue)
+	
+	case ScalingLogarithmic:
+		// Ensure minimum value for log scaling
+		val := math.Max(float64(value), minLogValue)
+		maxVal := math.Max(float64(maxValue), minLogValue)
+		
+		// Apply logarithmic scaling
+		logVal := math.Log10(val)
+		logMax := math.Log10(maxVal)
+		logMin := math.Log10(minLogValue)
+		
+		// Normalize to 0-1 range
+		return (logVal - logMin) / (logMax - logMin)
+	
+	case ScalingSquareRoot:
+		return math.Sqrt(float64(value)) / math.Sqrt(float64(maxValue))
+	
+	default:
+		return float64(value) / float64(maxValue)
+	}
+}
+
+// getGradientColor returns a color from the gradient based on height percentage
+func (bc *BrailleChart) getGradientColor(heightPercent float64, isUpload bool) lipgloss.Color {
+	gradient := downloadGradient
 	if isUpload {
-		cacheKey = fmt.Sprintf("u_%c_%.2f", char, heightPercent)
-	} else {
-		cacheKey = fmt.Sprintf("d_%c_%.2f", char, heightPercent)
+		gradient = uploadGradient
 	}
 
-	// Check cache first
-	var cache map[string]string
-	if isUpload {
-		cache = uploadCharCache
-	} else {
-		cache = downloadCharCache
+	// Clamp height percentage to 0-1
+	if heightPercent < 0 {
+		heightPercent = 0
+	}
+	if heightPercent > 1 {
+		heightPercent = 1
 	}
 
-	if cached, exists := cache[cacheKey]; exists {
-		return cached
+	// Calculate which gradient step to use
+	stepCount := len(gradient.Steps)
+	if stepCount == 0 {
+		if isUpload {
+			return baseUploadColor
+		}
+		return baseDownloadColor
 	}
 
-	// Create styled character
-	style := lipgloss.NewStyle().Foreground(color).Bold(true)
-	styled := style.Render(string(char))
+	// Map height percentage to gradient step
+	stepIndex := int(heightPercent * float64(stepCount-1))
+	if stepIndex >= stepCount {
+		stepIndex = stepCount - 1
+	}
 
-	// Cache the result
-	cache[cacheKey] = styled
+	return gradient.Steps[stepIndex]
+}
 
-	return styled
+// ScalingMode defines how the chart scales data
+type ScalingMode int
+
+const (
+	ScalingLinear ScalingMode = iota
+	ScalingLogarithmic
+	ScalingSquareRoot
+)
+
+// ColorGradient represents a color gradient configuration
+type ColorGradient struct {
+	Steps []lipgloss.Color
+}
+
+// Optimization: pre-calculated dot patterns as package constants
+var dotPatterns = [4]int{
+	0x01 | 0x08, // dots 0,3 (row 0)
+	0x02 | 0x10, // dots 1,4 (row 1)
+	0x04 | 0x20, // dots 2,5 (row 2)
+	0x40 | 0x80, // dots 6,7 (row 3)
+}
+
+var (
+	// Chart-specific styles for braille characters - base colors
+	baseUploadColor   = lipgloss.Color("#F87171") // Red for upload
+	baseDownloadColor = lipgloss.Color("#34D399") // Green for download
+
+	// Color gradients for height-based shading (lighter as they get taller)
+	uploadGradient = ColorGradient{
+		Steps: []lipgloss.Color{
+			lipgloss.Color("#7F1D1D"), // Dark red (bottom)
+			lipgloss.Color("#B91C1C"), // Medium-dark red
+			lipgloss.Color("#DC2626"), // Medium red
+			lipgloss.Color("#EF4444"), // Medium-light red
+			lipgloss.Color("#F87171"), // Light red
+			lipgloss.Color("#FCA5A5"), // Very light red (top)
+		},
+	}
+
+	downloadGradient = ColorGradient{
+		Steps: []lipgloss.Color{
+			lipgloss.Color("#064E3B"), // Dark green (bottom)
+			lipgloss.Color("#047857"), // Medium-dark green
+			lipgloss.Color("#059669"), // Medium green
+			lipgloss.Color("#10B981"), // Medium-light green
+			lipgloss.Color("#34D399"), // Light green
+			lipgloss.Color("#6EE7B7"), // Very light green (top)
+		},
+	}
+
+	// Overlap style for overlay mode
+	overlapStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FCD34D")). // Yellow for overlap
+			Bold(true)
+
+	// Optimization: character cache for styled braille characters
+	uploadCharCache   = make(map[string]string, 1536)   // 6 gradient steps * 256 chars
+	downloadCharCache = make(map[string]string, 1536)   // 6 gradient steps * 256 chars
+	overlapCharCache  = make(map[rune]string, 256)
+)
+
+// BrailleChart creates beautiful braille-based charts for terminal display
+type BrailleChart struct {
+	width        int
+	height       int
+	maxPoints    int
+	uploadData   []uint64
+	downloadData []uint64
+	maxValue     uint64
+	minHeight    int
+	// Optimization: track current max without full recalculation
+	currentMax uint64
+	// Optimization: pre-allocated string builder for rendering
+	builder strings.Builder
+	// Optimization: pre-allocated slice for lines to avoid repeated allocations
+	lines []strings.Builder
+	// Display mode: false = split axis, true = overlay mode
+	overlayMode bool
+	// Scaling mode: how the data is scaled (linear, logarithmic, square root)
+	scalingMode ScalingMode
+}
+
+// DataPoint represents a single measurement point
+type DataPoint struct {
+	Upload   uint64
+	Download uint64
+}
+
+// NewBrailleChart creates a new braille chart
+func NewBrailleChart(maxPoints int) *BrailleChart {
+	return &BrailleChart{
+		width:     defaultChartWidth,
+		height:    defaultChartHeight,
+		maxPoints: maxPoints,
+		// Optimization: pre-allocate slices with fixed capacity to avoid reallocations
+		uploadData:   make([]uint64, 0, maxPoints),
+		downloadData: make([]uint64, 0, maxPoints),
+		maxValue:     1024, // Start with 1KB minimum scale
+		minHeight:    MinChartHeight,
+		currentMax:   0,
+		// Optimization: pre-allocate string builders
+		lines:       make([]strings.Builder, 0, defaultMaxPoints), // Pre-allocate for typical chart heights
+		overlayMode: false,                                        // Default to split axis mode
+		scalingMode: ScalingLogarithmic,                          // Default to logarithmic scaling
+	}
+}
+
+// SetWidth sets the chart width
+func (bc *BrailleChart) SetWidth(width int) {
+	bc.width = width
+	if bc.width < 20 {
+		bc.width = 20
+	}
+}
+
+// SetHeight sets the chart height
+func (bc *BrailleChart) SetHeight(height int) {
+	bc.height = height
+	if bc.height < bc.minHeight {
+		bc.height = bc.minHeight
+	}
+}
+
+// SetMaxPoints updates the maximum number of data points to maintain
+// If reducing the limit, excess data is trimmed from the beginning
+func (bc *BrailleChart) SetMaxPoints(maxPoints int) {
+	if maxPoints <= 0 {
+		return
+	}
+
+	oldMaxPoints := bc.maxPoints
+	bc.maxPoints = maxPoints
+
+	// If reducing the limit, trim excess data
+	if maxPoints < oldMaxPoints {
+		// Trim upload data if necessary
+		if len(bc.uploadData) > maxPoints {
+			bc.uploadData = bc.uploadData[len(bc.uploadData)-maxPoints:]
+		}
+		// Trim download data if necessary
+		if len(bc.downloadData) > maxPoints {
+			bc.downloadData = bc.downloadData[len(bc.downloadData)-maxPoints:]
+		}
+		// Recalculate max value after trimming
+		bc.recalculateMax()
+	}
+
+	// Update the capacity of the pre-allocated slices if needed
+	if maxPoints > cap(bc.uploadData) {
+		newUploadData := make([]uint64, len(bc.uploadData), maxPoints)
+		copy(newUploadData, bc.uploadData)
+		bc.uploadData = newUploadData
+
+		newDownloadData := make([]uint64, len(bc.downloadData), maxPoints)
+		copy(newDownloadData, bc.downloadData)
+		bc.downloadData = newDownloadData
+	}
+}
+
+// SetOverlayMode sets the display mode
+func (bc *BrailleChart) SetOverlayMode(enabled bool) {
+	bc.overlayMode = enabled
+}
+
+// ToggleOverlayMode toggles between split axis and overlay mode
+func (bc *BrailleChart) ToggleOverlayMode() {
+	bc.overlayMode = !bc.overlayMode
+}
+
+// IsOverlayMode returns true if overlay mode is enabled
+func (bc *BrailleChart) IsOverlayMode() bool {
+	return bc.overlayMode
+}
+
+// SetScalingMode sets the scaling mode for the chart
+func (bc *BrailleChart) SetScalingMode(mode ScalingMode) {
+	bc.scalingMode = mode
+}
+
+// GetScalingMode returns the current scaling mode
+func (bc *BrailleChart) GetScalingMode() ScalingMode {
+	return bc.scalingMode
+}
+
+// CycleScalingMode cycles through available scaling modes
+func (bc *BrailleChart) CycleScalingMode() ScalingMode {
+	switch bc.scalingMode {
+	case ScalingLinear:
+		bc.scalingMode = ScalingLogarithmic
+	case ScalingLogarithmic:
+		bc.scalingMode = ScalingSquareRoot
+	case ScalingSquareRoot:
+		bc.scalingMode = ScalingLinear
+	default:
+		bc.scalingMode = ScalingLinear
+	}
+	return bc.scalingMode
+}
+
+// GetScalingModeName returns a human-readable name for the current scaling mode
+func (bc *BrailleChart) GetScalingModeName() string {
+	switch bc.scalingMode {
+	case ScalingLinear:
+		return "Linear"
+	case ScalingLogarithmic:
+		return "Logarithmic"
+	case ScalingSquareRoot:
+		return "Square Root"
+	default:
+		return "Unknown"
+	}
 }
 
 // AddDataPoint adds a new data point to the chart
@@ -622,7 +1073,6 @@ func (bc *BrailleChart) createBrailleCharForLineSplit(line, uploadHeight, downlo
 
 	hasUpload := false
 	hasDownload := false
-	var uploadGradientPos, downloadGradientPos float64
 
 	// Calculate the vertical range of this braille character
 	// Line 0 is at the top, line 5 is at the bottom (natural order)
@@ -642,11 +1092,6 @@ func (bc *BrailleChart) createBrailleCharForLineSplit(line, uploadHeight, downlo
 			if distanceFromAxis <= downloadHeight {
 				hasDownload = true
 				dots |= dotPatterns[dotRow]
-				// Calculate gradient position based on ABSOLUTE distance from axis for horizontal consistency
-				// For download in split mode: 0.0 = lightest (at axis), 1.0 = darkest (away from axis)
-				// distanceFromAxis ranges from 1 (just above axis) to downloadHeight (top of column)
-				// We want: axis = light (0.0), away from axis = dark (1.0)
-				downloadGradientPos = float64(distanceFromAxis-1) / float64(halfHeight-1)
 			}
 		}
 
@@ -658,11 +1103,6 @@ func (bc *BrailleChart) createBrailleCharForLineSplit(line, uploadHeight, downlo
 			if distanceFromAxis < uploadHeight {
 				hasUpload = true
 				dots |= dotPatterns[dotRow]
-				// Calculate gradient position based on ABSOLUTE distance from axis for horizontal consistency
-				// For upload in split mode: 0.0 = lightest (at axis), 1.0 = darkest (away from axis)
-				// distanceFromAxis ranges from 0 (at axis) to uploadHeight-1 (bottom of column)
-				// We want: axis = light (0.0), away from axis = dark (1.0)
-				uploadGradientPos = float64(distanceFromAxis) / float64(halfHeight-1)
 			}
 		}
 	}
@@ -675,14 +1115,14 @@ func (bc *BrailleChart) createBrailleCharForLineSplit(line, uploadHeight, downlo
 	// Create the character
 	char := rune(base + dots)
 
-	// Use gradient styling based on vertical position within the column
+	// Use gradient styling based on height percentage
 	if hasUpload && hasDownload {
 		// This shouldn't happen with split axis, but just in case - use upload style
-		return bc.getStyledCharWithGradient(char, uploadGradientPos, true)
+		return bc.getStyledCharWithGradient(char, uploadScale, true)
 	} else if hasUpload {
-		return bc.getStyledCharWithGradient(char, uploadGradientPos, true)
+		return bc.getStyledCharWithGradient(char, uploadScale, true)
 	} else if hasDownload {
-		return bc.getStyledCharWithGradient(char, downloadGradientPos, false)
+		return bc.getStyledCharWithGradient(char, downloadScale, false)
 	}
 
 	return string(char)
@@ -699,9 +1139,6 @@ func (bc *BrailleChart) createBrailleCharForOverlay(line, uploadHeight, download
 	base := brailleBase
 	var uploadDots, downloadDots int
 
-	// Track gradient positions for upload and download
-	var uploadGradientPos, downloadGradientPos float64
-
 	// Calculate the vertical range of this braille character
 	// Line 0 is at the top, but we fill from bottom
 	lineTop := line * brailleDots
@@ -717,32 +1154,43 @@ func (bc *BrailleChart) createBrailleCharForOverlay(line, uploadHeight, download
 		// Check if this dot should be filled for upload
 		if distanceFromBottom <= uploadHeight {
 			uploadDots |= dotPatterns[dotRow]
-			// Calculate gradient position based on ABSOLUTE position in chart for horizontal consistency
-			// For overlay: 0.0 = lightest (at bottom), 1.0 = darkest (at top)
-			// absoluteDotPos ranges from 0 (top) to fullHeight-1 (bottom)
-			// We want: bottom = light (0.0), top = dark (1.0)
-			// So we need to invert: 0.0 at bottom, 1.0 at top
-			uploadGradientPos = 1.0 - (float64(absoluteDotPos) / float64(fullHeight-1))
 		}
 
 		// Check if this dot should be filled for download
 		if distanceFromBottom <= downloadHeight {
 			downloadDots |= dotPatterns[dotRow]
-			// Calculate gradient position based on ABSOLUTE position in chart for horizontal consistency
-			// For overlay: 0.0 = lightest (at bottom), 1.0 = darkest (at top)
-			// absoluteDotPos ranges from 0 (top) to fullHeight-1 (bottom)
-			// We want: bottom = light (0.0), top = dark (1.0)
-			// So we need to invert: 0.0 at bottom, 1.0 at top
-			downloadGradientPos = 1.0 - (float64(absoluteDotPos) / float64(fullHeight-1))
 		}
 	}
 
 	// Determine final dots and styling
 	overlapDots := uploadDots & downloadDots
+	uploadOnlyDots := uploadDots & ^downloadDots
+	downloadOnlyDots := downloadDots & ^uploadDots
 
 	// Optimization: skip character creation if no dots
 	if uploadDots == 0 && downloadDots == 0 {
 		return " "
+	}
+
+	// Create characters for each type
+	var result strings.Builder
+
+	// If there's overlap, render the overlap in yellow
+	if overlapDots != 0 {
+		overlapChar := rune(base + overlapDots)
+		result.WriteString(bc.getStyledCharOverlay(overlapChar, "overlap"))
+	}
+
+	// Render upload-only dots in red
+	if uploadOnlyDots != 0 {
+		uploadChar := rune(base + uploadOnlyDots)
+		result.WriteString(bc.getStyledCharOverlay(uploadChar, "upload"))
+	}
+
+	// Render download-only dots in green
+	if downloadOnlyDots != 0 {
+		downloadChar := rune(base + downloadOnlyDots)
+		result.WriteString(bc.getStyledCharOverlay(downloadChar, "download"))
 	}
 
 	// For overlapping positions, we need to combine the characters
@@ -756,10 +1204,10 @@ func (bc *BrailleChart) createBrailleCharForOverlay(line, uploadHeight, download
 		return bc.getStyledCharOverlay(char, "overlap")
 	} else if uploadDots != 0 {
 		char := rune(base + uploadDots)
-		return bc.getStyledCharWithGradient(char, uploadGradientPos, true)
+		return bc.getStyledCharWithGradient(char, uploadScale, true)
 	} else if downloadDots != 0 {
 		char := rune(base + downloadDots)
-		return bc.getStyledCharWithGradient(char, downloadGradientPos, false)
+		return bc.getStyledCharWithGradient(char, downloadScale, false)
 	}
 
 	return " "
@@ -774,14 +1222,14 @@ func (bc *BrailleChart) getStyledChar(char rune, isUpload bool) string {
 	} else {
 		style = lipgloss.NewStyle().Foreground(baseDownloadColor).Bold(true)
 	}
-
+	
 	return style.Render(string(char))
 }
 
 // getStyledCharOverlay returns a cached styled character for overlay mode
 func (bc *BrailleChart) getStyledCharOverlay(char rune, mode string) string {
 	var style lipgloss.Style
-
+	
 	switch mode {
 	case "upload":
 		style = lipgloss.NewStyle().Foreground(baseUploadColor).Bold(true)
@@ -792,7 +1240,7 @@ func (bc *BrailleChart) getStyledCharOverlay(char rune, mode string) string {
 	default:
 		return string(char)
 	}
-
+	
 	return style.Render(string(char))
 }
 
@@ -824,4 +1272,92 @@ func (bc *BrailleChart) GetDataLength() int {
 		return uploadLen
 	}
 	return downloadLen
+}
+
+// getLogScaledValue calculates the logarithmic scale value for a given input
+func (bc *BrailleChart) getLogScaledValue(input uint64) float64 {
+	if input == 0 {
+		return 0
+	}
+
+	// Apply logarithmic scaling with configurable base
+	return math.Log(float64(input)) / math.Log(logBase)
+}
+
+// getSqrtScaledValue calculates the square root scale value for a given input
+func (bc *BrailleChart) getSqrtScaledValue(input uint64) float64 {
+	if input == 0 {
+		return 0
+	}
+
+	// Apply square root scaling
+	return math.Sqrt(float64(input))
+}
+
+// getLinearScaledValue calculates the linear scale value for a given input
+func (bc *BrailleChart) getLinearScaledValue(input uint64) float64 {
+	return float64(input)
+}
+
+// getScaledValue calculates the scaled value based on the current scaling mode
+func (bc *BrailleChart) getScaledValue(input uint64) float64 {
+	switch bc.scalingMode {
+	case ScalingLogarithmic:
+		return bc.getLogScaledValue(input)
+	case ScalingSquareRoot:
+		return bc.getSqrtScaledValue(input)
+	default:
+		return bc.getLinearScaledValue(input)
+	}
+}
+
+// getGradientColor calculates the color for a given value based on the gradient
+func (cg *ColorGradient) getGradientColor(value, minValue, maxValue uint64) lipgloss.Color {
+	// Avoid division by zero
+	if minValue == maxValue {
+		return cg.Steps[len(cg.Steps)-1] // Return the last color if no range
+	}
+
+	// Normalize value to range [0,1]
+	normalized := float64(value-minValue) / float64(maxValue-minValue)
+
+	// Calculate gradient step
+	step := normalized * float64(len(cg.Steps)-1)
+
+	// Find indices for interpolation
+	index := int(step)
+	if index >= len(cg.Steps)-1 {
+		return cg.Steps[len(cg.Steps)-1] // Return last color if out of range
+	}
+
+	// Linear interpolation between colors
+	color1 := cg.Steps[index]
+	color2 := cg.Steps[index+1]
+
+	// Calculate interpolation factor
+	factor := step - float64(index)
+
+	// Interpolate between color1 and color2
+	return lipgloss.Color(
+		int(float64(color1.R) + factor*float64(color2.R))<<16 |
+			int(float64(color1.G) + factor*float64(color2.G))<<8 |
+			int(float64(color1.B) + factor*float64(color2.B)),
+	)
+}
+
+// getStyledCharWithGradient returns a styled character with gradient color based on value
+func (bc *BrailleChart) getStyledCharWithGradient(value uint64, isUpload bool) string {
+	// Determine gradient based on upload or download
+	var gradient ColorGradient
+	if isUpload {
+		gradient = uploadGradient
+	} else {
+		gradient = downloadGradient
+	}
+
+	// Get color from gradient
+	color := gradient.getGradientColor(value, 0, bc.maxValue)
+
+	// Create a styled character with the gradient color
+	return lipgloss.NewStyle().Foreground(color).Render("⠿")
 }

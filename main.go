@@ -176,6 +176,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.displayMode = "split"
 				m.chart.SetOverlayMode(false)
 			}
+
+		case key.Matches(msg, m.keys.ScalingMode):
+			// Cycle through scaling modes
+			m.chart.CycleScalingMode()
 		}
 
 	case tickMsg:
@@ -223,8 +227,11 @@ func (m *model) updateStatusbar() {
 	totalDownloadFormatted := ui.FormatBytes(stats.TotalDownload)
 	totalValues := fmt.Sprintf("Total: ↑%8s ↓%8s", totalUploadFormatted, totalDownloadFormatted)
 
-	// Format uptime
-	uptimeValue := "Up: " + ui.FormatDuration(stats.GetUptime())
+	// Format uptime and display mode and scaling mode
+	uptimeValue := fmt.Sprintf("Up: %s | Mode: %s | Scale: %s", 
+		ui.FormatDuration(stats.GetUptime()), 
+		m.displayMode, 
+		m.chart.GetScalingModeName())
 
 	m.statusbar.SetContent(currentRates, peakValues, totalValues, uptimeValue)
 }
@@ -267,9 +274,9 @@ func (m model) View() string {
 		helpStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#6B7280"))
 
-		controls := "r: reset • p: pause • s: statusbar • m: mode • q: quit"
+		controls := "r: reset • p: pause • s: statusbar • m: mode • l: scale • q: quit"
 		if m.paused {
-			controls = "r: reset • p: resume • s: statusbar • m: mode • q: quit"
+			controls = "r: reset • p: resume • s: statusbar • m: mode • l: scale • q: quit"
 		}
 
 		view.WriteString(helpStyle.Render(controls))
