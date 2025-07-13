@@ -7,90 +7,77 @@ import (
 )
 
 func main() {
-	fmt.Println("Debug Window Distribution")
-	fmt.Println("========================")
-
-	bc := chart.NewBrailleChart(200)
-	bc.SetWidth(20) // Use smaller width for easier debugging
-	bc.SetHeight(6)
-
-	// Add 50 data points
-	fmt.Println("Adding 50 data points...")
-	for i := 0; i < 50; i++ {
-		upload := uint64(1000 + i*100)
-		download := uint64(800 + i*80)
-		bc.AddDataPoint(upload, download)
-	}
-
-	fmt.Printf("Chart width: %d\n", bc.GetWidth())
-	fmt.Printf("Data length: %d\n", bc.GetDataLength())
-
-	// Test 5-minute scale (window size = 5)
-	bc.SetTimeScale(chart.TimeScale5Min)
-	timeScaleSeconds := bc.GetTimeScaleSeconds()
-	windowSize := timeScaleSeconds / 60
+	fmt.Println("Window Debug Analysis")
+	fmt.Println("=====================")
 	
-	fmt.Printf("Time scale: %s\n", bc.GetTimeScaleName())
-	fmt.Printf("Time scale seconds: %d\n", timeScaleSeconds)
-	fmt.Printf("Window size: %d\n", windowSize)
-
-	chartWidth := bc.GetWidth()
-	dataLen := bc.GetDataLength()
-
-	fmt.Println("\nWindow calculation for each column:")
-	for x := 0; x < chartWidth; x++ {
-		// This is the same logic as in renderWithTimeWindows
-		columnsFromRight := chartWidth - 1 - x
-		windowEndOffset := columnsFromRight * windowSize
-		windowEndIndex := dataLen - windowEndOffset
-		windowStartIndex := windowEndIndex - windowSize
+	c := chart.NewBrailleChart(1000)
+	c.SetWidth(10) // Small width for easier analysis
+	c.SetHeight(6)
+	c.SetTimeScale(chart.TimeScale3Min) // 3-minute window = windowSize=3
+	
+	// Add data points one by one and show the window breakdown
+	for i := 0; i < 10; i++ {
+		upload := uint64(1024 * (10 + i*5)) // Start at 10KB, increase by 5KB each time
+		download := uint64(1024 * (5 + i*3)) // Start at 5KB, increase by 3KB each time
 		
-		fmt.Printf("Column %2d: columnsFromRight=%2d, windowEndOffset=%2d, window=[%2d:%2d]", 
-			x, columnsFromRight, windowEndOffset, windowStartIndex, windowEndIndex)
+		c.AddDataPoint(upload, download)
 		
-		if windowStartIndex < 0 || windowEndIndex <= 0 {
-			fmt.Printf(" -> NO DATA")
-		} else if windowStartIndex >= dataLen {
-			fmt.Printf(" -> OUT OF RANGE")
-		} else {
-			// Calculate what data this window would contain
-			actualStart := windowStartIndex
-			if actualStart < 0 {
-				actualStart = 0
-			}
-			actualEnd := windowEndIndex
-			if actualEnd > dataLen {
-				actualEnd = dataLen
-			}
-			if actualEnd > actualStart {
-				fmt.Printf(" -> data indices [%2d:%2d]", actualStart, actualEnd)
-			} else {
-				fmt.Printf(" -> EMPTY WINDOW")
-			}
-		}
-		fmt.Println()
+		fmt.Printf("\nStep %d: Added upload=%dKB, download=%dKB\n", i+1, upload/1024, download/1024)
+		debugWindows(c, i+1)
+		
+		output := c.Render()
+		fmt.Printf("Chart: %s\n", compactChart(output))
 	}
+}
 
-	// Now render and show which columns have data
-	rendered := bc.Render()
-	lines := rendered
-	if lines != "" {
-		firstLine := ""
-		for _, char := range lines {
-			if char == '\n' {
-				break
-			}
-			firstLine += string(char)
-		}
-		
-		fmt.Printf("\nFirst line rendered (%d chars): '%s'\n", len(firstLine), firstLine)
-		
-		// Count non-space characters by position
-		fmt.Println("Data distribution by column:")
-		for i, char := range firstLine {
-			if char != ' ' && char != '\x1b' { // Not space or escape
-				fmt.Printf("  Column %d: '%c'\n", i, char)
-			}
-		}
+func debugWindows(c *chart.BrailleChart, dataLen int) {
+	windowSize := 3 // For TimeScale3Min
+	chartWidth := 10
+	
+	// Calculate windows using the same logic as renderWithTimeWindows
+	totalCompleteWindows := dataLen / windowSize
+	hasPartialWindow := (dataLen % windowSize) != 0
+	totalWindows := totalCompleteWindows
+	if hasPartialWindow {
+		totalWindows++
 	}
+	
+	firstVisibleWindow := 0
+	if totalWindows > chartWidth {
+		firstVisibleWindow = totalWindows - chartWidth
+	}
+	
+	fmt.Printf("  DataLen=%d, CompleteWindows=%d, HasPartial=%v, TotalWindows=%d\n", 
+		dataLen, totalCompleteWindows, hasPartialWindow, totalWindows)
+	fmt.Printf("  FirstVisible=%d, VisibleWindows=%d\n", 
+		firstVisibleWindow, min(totalWindows-firstVisibleWindow, chartWidth))
+	
+	// Show window mappings
+	for x := 0; x < chartWidth && x < totalWindows-firstVisibleWindow; x++ {
+		windowIndex := firstVisibleWindow + x
+		windowStartIndex := windowIndex * windowSize
+		windowEndIndex := windowStartIndex + windowSize
+		if windowEndIndex > dataLen {
+			windowEndIndex = dataLen
+		}
+		
+		fmt.Printf("  Column %d -> Window %d [%d,%d)\n", 
+			x, windowIndex, windowStartIndex, windowEndIndex)
+	}
+}
+
+func compactChart(chart string) string {
+	// Return just the first line to see the pattern
+	lines := fmt.Sprintf("%q", chart)
+	if len(lines) > 80 {
+		return lines[:80] + "..."
+	}
+	return lines
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
