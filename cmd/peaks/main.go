@@ -107,9 +107,9 @@ func initialModel() model {
 			Foreground: lipgloss.AdaptiveColor{Dark: "#9CA3AF", Light: "#6B7280"},
 			Background: lipgloss.AdaptiveColor{Dark: "#1F2937", Light: "#E5E7EB"},
 		},
-		// Scaling mode section - green  
+		// Totals section - subtle
 		statusbar.ColorConfig{
-			Foreground: lipgloss.AdaptiveColor{Dark: "#34D399", Light: "#059669"},
+			Foreground: lipgloss.AdaptiveColor{Dark: "#6B7280", Light: "#9CA3AF"},
 			Background: lipgloss.AdaptiveColor{Dark: "#1F2937", Light: "#E5E7EB"},
 		},
 		// Uptime section - blue
@@ -228,20 +228,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *model) updateStatusbar() {
 	stats := m.ui.GetStats()
 
-	// Format current rates with truly fixed width to prevent jumping
+	// Define arrow colors to match upload/download data
+	uploadArrowStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Dark: "#10B981", Light: "#047857"}) // Green for upload
+	downloadArrowStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Dark: "#EF4444", Light: "#DC2626"}) // Red for download
+
+	// Format current rates with colored arrows
 	uploadFormatted := ui.FormatBandwidth(m.currentUpload)
 	downloadFormatted := ui.FormatBandwidth(m.currentDownload)
-	currentRates := fmt.Sprintf("↑%11s ↓%11s", uploadFormatted, downloadFormatted)
+	currentRates := fmt.Sprintf("%s%11s %s%11s", 
+		uploadArrowStyle.Render("↑"), uploadFormatted,
+		downloadArrowStyle.Render("↓"), downloadFormatted)
 
-	// Format peak values with fixed formatting
+	// Format peak values with colored arrows
 	peakUploadFormatted := ui.FormatBandwidth(stats.PeakUpload)
 	peakDownloadFormatted := ui.FormatBandwidth(stats.PeakDownload)
-	peakValues := fmt.Sprintf("Peak: ↑%9s ↓%9s", peakUploadFormatted, peakDownloadFormatted)
+	peakValues := fmt.Sprintf("Peak: %s%9s %s%9s", 
+		uploadArrowStyle.Render("↑"), peakUploadFormatted,
+		downloadArrowStyle.Render("↓"), peakDownloadFormatted)
 
-	// Format totals with fixed formatting
+	// Format totals with colored arrows
 	totalUploadFormatted := ui.FormatBytes(stats.TotalUpload)
 	totalDownloadFormatted := ui.FormatBytes(stats.TotalDownload)
-	totalValues := fmt.Sprintf("Total: ↑%8s ↓%8s", totalUploadFormatted, totalDownloadFormatted)
+	totalValues := fmt.Sprintf("Total: %s%8s %s%8s", 
+		uploadArrowStyle.Render("↑"), totalUploadFormatted,
+		downloadArrowStyle.Render("↓"), totalDownloadFormatted)
 
 	// Format uptime and display mode and scaling mode
 	uptimeValue := fmt.Sprintf("Up: %s | Mode: %s | Scale: %s",
