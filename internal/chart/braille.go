@@ -347,6 +347,56 @@ func (bc *BrailleChart) getStyledCharWithGradient(char rune, heightPercent float
 	return styled
 }
 
+// getStyledCharWithOverlapGradient returns a styled character with yellow overlap gradient coloring
+func (bc *BrailleChart) getStyledCharWithOverlapGradient(char rune, heightPercent float64) string {
+	// Create yellow gradient (lighter at bottom, darker at top) with more dramatic differences
+	yellowGradient := ColorGradient{
+		Steps: []lipgloss.Color{
+			lipgloss.Color("#713F12"), // Very dark yellow/brown (darkest)
+			lipgloss.Color("#92400E"), // Dark yellow
+			lipgloss.Color("#B45309"), // Medium-dark yellow
+			lipgloss.Color("#D97706"), // Medium yellow
+			lipgloss.Color("#F59E0B"), // Medium-light yellow
+			lipgloss.Color("#FBBF24"), // Light yellow
+			lipgloss.Color("#FCD34D"), // Very light yellow
+			lipgloss.Color("#FDE68A"), // Extremely light yellow (lightest)
+		},
+	}
+
+	// Clamp height percentage to 0-1
+	if heightPercent < 0 {
+		heightPercent = 0
+	}
+	if heightPercent > 1 {
+		heightPercent = 1
+	}
+
+	// Calculate which gradient step to use
+	stepCount := len(yellowGradient.Steps)
+	if stepCount == 0 {
+		return overlapStyle.Render(string(char))
+	}
+
+	// INVERT the gradient position so that 0.0 = lightest, 1.0 = darkest
+	// This makes 0.0 (bottom) use the last (lightest) color in array
+	// and 1.0 (top) use the first (darkest) color in array
+	invertedPercent := 1.0 - heightPercent
+
+	// Map inverted height percentage to gradient step
+	stepIndex := int(invertedPercent * float64(stepCount-1))
+	if stepIndex >= stepCount {
+		stepIndex = stepCount - 1
+	}
+
+	color := yellowGradient.Steps[stepIndex]
+
+	// Create styled character
+	style := lipgloss.NewStyle().Foreground(color).Bold(true)
+	styled := style.Render(string(char))
+
+	return styled
+}
+
 // AddDataPoint adds a new data point to the chart
 func (bc *BrailleChart) AddDataPoint(upload, download uint64) {
 	// Update current max efficiently
@@ -643,7 +693,7 @@ func (bc *BrailleChart) createBrailleCharForLineSplit(line, uploadHeight, downlo
 				hasDownload = true
 				dots |= dotPatterns[dotRow]
 				// Calculate gradient position based on ABSOLUTE distance from axis for horizontal consistency
-				// For download in split mode: 0.0 = lightest (at axis), 1.0 = darkest (away from axis)
+				// For download in split mode: 0.0 = light (0.0), 1.0 = dark (1.0)
 				// distanceFromAxis ranges from 1 (just above axis) to downloadHeight (top of column)
 				// We want: axis = light (0.0), away from axis = dark (1.0)
 				downloadGradientPos = float64(distanceFromAxis-1) / float64(halfHeight-1)
@@ -659,7 +709,7 @@ func (bc *BrailleChart) createBrailleCharForLineSplit(line, uploadHeight, downlo
 				hasUpload = true
 				dots |= dotPatterns[dotRow]
 				// Calculate gradient position based on ABSOLUTE distance from axis for horizontal consistency
-				// For upload in split mode: 0.0 = lightest (at axis), 1.0 = darkest (away from axis)
+				// For upload in split mode: 0.0 = light (0.0), 1.0 = dark (1.0)
 				// distanceFromAxis ranges from 0 (at axis) to uploadHeight-1 (bottom of column)
 				// We want: axis = light (0.0), away from axis = dark (1.0)
 				uploadGradientPos = float64(distanceFromAxis) / float64(halfHeight-1)
@@ -699,9 +749,6 @@ func (bc *BrailleChart) createBrailleCharForOverlay(line, uploadHeight, download
 	base := brailleBase
 	var uploadDots, downloadDots int
 
-	// Track gradient positions for upload and download
-	var uploadGradientPos, downloadGradientPos float64
-
 	// Calculate the vertical range of this braille character
 	// Line 0 is at the top, but we fill from bottom
 	lineTop := line * brailleDots
@@ -717,23 +764,11 @@ func (bc *BrailleChart) createBrailleCharForOverlay(line, uploadHeight, download
 		// Check if this dot should be filled for upload
 		if distanceFromBottom <= uploadHeight {
 			uploadDots |= dotPatterns[dotRow]
-			// Calculate gradient position based on ABSOLUTE position in chart for horizontal consistency
-			// For overlay: 0.0 = lightest (at bottom), 1.0 = darkest (at top)
-			// absoluteDotPos ranges from 0 (top) to fullHeight-1 (bottom)
-			// We want: bottom = light (0.0), top = dark (1.0)
-			// So we need to invert: 0.0 at bottom, 1.0 at top
-			uploadGradientPos = 1.0 - (float64(absoluteDotPos) / float64(fullHeight-1))
 		}
 
 		// Check if this dot should be filled for download
 		if distanceFromBottom <= downloadHeight {
 			downloadDots |= dotPatterns[dotRow]
-			// Calculate gradient position based on ABSOLUTE position in chart for horizontal consistency
-			// For overlay: 0.0 = lightest (at bottom), 1.0 = darkest (at top)
-			// absoluteDotPos ranges from 0 (top) to fullHeight-1 (bottom)
-			// We want: bottom = light (0.0), top = dark (1.0)
-			// So we need to invert: 0.0 at bottom, 1.0 at top
-			downloadGradientPos = 1.0 - (float64(absoluteDotPos) / float64(fullHeight-1))
 		}
 	}
 
@@ -745,21 +780,36 @@ func (bc *BrailleChart) createBrailleCharForOverlay(line, uploadHeight, download
 		return " "
 	}
 
-	// For overlapping positions, we need to combine the characters
-	// Since we can't actually overlay characters, we'll prioritize overlap color
+	// Create the character with all dots
+	char := rune(base + (uploadDots | downloadDots))
+
+	// Calculate gradient position based on ABSOLUTE position in chart for horizontal consistency
+	// This ensures all columns have the same gradient regardless of their individual heights
+	// We want: bottom = light (0.0), top = dark (1.0)
+	// Since line 0 is at the top and line (height-1) is at the bottom, we need to invert
+	gradientPos := 1.0 - (float64(lineTop + brailleDots/2) / float64(fullHeight-1))
+	
+	// Clamp gradient position
+	if gradientPos < 0 {
+		gradientPos = 0
+	}
+	if gradientPos > 1 {
+		gradientPos = 1
+	}
+
+	// Determine color based on overlap status but use same gradient position for all
 	if overlapDots != 0 {
-		char := rune(base + (uploadDots | downloadDots))
-		return bc.getStyledCharOverlay(char, "overlap")
+		// Overlap area - use yellow gradient
+		return bc.getStyledCharWithOverlapGradient(char, gradientPos)
 	} else if uploadDots != 0 && downloadDots != 0 {
-		// Both present but no overlap at dot level - shouldn't happen in overlay mode
-		char := rune(base + (uploadDots | downloadDots))
-		return bc.getStyledCharOverlay(char, "overlap")
+		// Both present but no overlap at dot level - use yellow gradient
+		return bc.getStyledCharWithOverlapGradient(char, gradientPos)
 	} else if uploadDots != 0 {
-		char := rune(base + uploadDots)
-		return bc.getStyledCharWithGradient(char, uploadGradientPos, true)
+		// Upload-only area - use red gradient
+		return bc.getStyledCharWithGradient(char, gradientPos, true)
 	} else if downloadDots != 0 {
-		char := rune(base + downloadDots)
-		return bc.getStyledCharWithGradient(char, downloadGradientPos, false)
+		// Download-only area - use green gradient
+		return bc.getStyledCharWithGradient(char, gradientPos, false)
 	}
 
 	return " "
