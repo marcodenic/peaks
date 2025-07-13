@@ -244,14 +244,14 @@ func (m *model) updateStatusbar() {
 	// Format peak values with colored arrows
 	peakUploadFormatted := ui.FormatBandwidth(stats.PeakUpload)
 	peakDownloadFormatted := ui.FormatBandwidth(stats.PeakDownload)
-	peakValues := fmt.Sprintf("Peak: %s%9s %s%9s", 
+	peakValues := fmt.Sprintf("Peak: %s %9s %s %9s", 
 		uploadArrowStyle.Render("↑"), peakUploadFormatted,
 		downloadArrowStyle.Render("↓"), peakDownloadFormatted)
 
 	// Format totals with colored arrows
 	totalUploadFormatted := ui.FormatBytes(stats.TotalUpload)
 	totalDownloadFormatted := ui.FormatBytes(stats.TotalDownload)
-	totalValues := fmt.Sprintf("Total: %s%8s %s%8s", 
+	totalValues := fmt.Sprintf("Total: %s %8s %s %8s", 
 		uploadArrowStyle.Render("↑"), totalUploadFormatted,
 		downloadArrowStyle.Render("↓"), totalDownloadFormatted)
 
