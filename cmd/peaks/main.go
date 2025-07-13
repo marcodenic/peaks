@@ -107,9 +107,9 @@ func initialModel() model {
 			Foreground: lipgloss.AdaptiveColor{Dark: "#9CA3AF", Light: "#6B7280"},
 			Background: lipgloss.AdaptiveColor{Dark: "#1F2937", Light: "#E5E7EB"},
 		},
-		// Totals section - subtle
+		// Scaling mode section - green  
 		statusbar.ColorConfig{
-			Foreground: lipgloss.AdaptiveColor{Dark: "#6B7280", Light: "#9CA3AF"},
+			Foreground: lipgloss.AdaptiveColor{Dark: "#34D399", Light: "#059669"},
 			Background: lipgloss.AdaptiveColor{Dark: "#1F2937", Light: "#E5E7EB"},
 		},
 		// Uptime section - blue
@@ -243,8 +243,11 @@ func (m *model) updateStatusbar() {
 	totalDownloadFormatted := ui.FormatBytes(stats.TotalDownload)
 	totalValues := fmt.Sprintf("Total: ↑%8s ↓%8s", totalUploadFormatted, totalDownloadFormatted)
 
-	// Format uptime
-	uptimeValue := "Up: " + ui.FormatDuration(stats.GetUptime())
+	// Format uptime and display mode and scaling mode
+	uptimeValue := fmt.Sprintf("Up: %s | Mode: %s | Scale: %s",
+		ui.FormatDuration(stats.GetUptime()),
+		m.displayMode,
+		m.chart.GetScalingModeName())
 
 	m.statusbar.SetContent(currentRates, peakValues, totalValues, uptimeValue)
 }
@@ -287,9 +290,9 @@ func (m model) View() string {
 		helpStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#6B7280"))
 
-		controls := "r: reset • p: pause • s: statusbar • m: mode • q: quit"
+		controls := "r: reset • p: pause • s: statusbar • m: mode • l: scaling • q: quit"
 		if m.paused {
-			controls = "r: reset • p: resume • s: statusbar • m: mode • q: quit"
+			controls = "r: reset • p: resume • s: statusbar • m: mode • l: scaling • q: quit"
 		}
 
 		view.WriteString(helpStyle.Render(controls))
