@@ -103,27 +103,23 @@ func initialModel() model {
 		keys:    ui.DefaultKeyMap(),
 	}
 
-	// Create statusbar with 4 sections and nice colors
+	// Create statusbar with 4 sections - no background colors to avoid conflicts with styled text
 	m.statusbar = statusbar.New(
-		// Current rates section - white for visibility
+		// Current rates section
 		statusbar.ColorConfig{
 			Foreground: lipgloss.AdaptiveColor{Dark: "#E5E7EB", Light: "#1F2937"},
-			Background: lipgloss.AdaptiveColor{Dark: "#1F2937", Light: "#E5E7EB"},
 		},
-		// Peak values section - muted
+		// Peak values section
 		statusbar.ColorConfig{
 			Foreground: lipgloss.AdaptiveColor{Dark: "#9CA3AF", Light: "#6B7280"},
-			Background: lipgloss.AdaptiveColor{Dark: "#1F2937", Light: "#E5E7EB"},
 		},
-		// Totals section - subtle
+		// Totals section
 		statusbar.ColorConfig{
 			Foreground: lipgloss.AdaptiveColor{Dark: "#6B7280", Light: "#9CA3AF"},
-			Background: lipgloss.AdaptiveColor{Dark: "#1F2937", Light: "#E5E7EB"},
 		},
-		// Uptime section - blue
+		// Uptime section
 		statusbar.ColorConfig{
 			Foreground: lipgloss.AdaptiveColor{Dark: "#60A5FA", Light: "#2563EB"},
-			Background: lipgloss.AdaptiveColor{Dark: "#1F2937", Light: "#E5E7EB"},
 		},
 	)
 
