@@ -149,8 +149,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.chart.SetMaxPoints(maxDataPoints)
 
 		// Update chart dimensions (always responsive to terminal width)
-		// Account for: statusbar (1 if shown) and help text (1)
-		chartHeight := m.height - 2 // Help text + buffer
+		// Account for: help text (1 line) + status bar (1 line if shown)
+		chartHeight := m.height - 1 // Leave room for help text
 		if m.showStatusbar {
 			chartHeight -= 1 // Leave room for statusbar
 		}
@@ -180,7 +180,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Stats):
 			m.showStatusbar = !m.showStatusbar
 			// Recalculate chart height
-			chartHeight := m.height - 2 // Help text + buffer
+			chartHeight := m.height - 3 // Help text + buffer + extra safety
 			if m.showStatusbar {
 				chartHeight -= 1
 			}
@@ -330,7 +330,10 @@ func (m model) View() string {
 		view.WriteString(helpStyle.Render(controls))
 	}
 
-	return view.String()
+	// Ensure we don't end with trailing newlines
+	result := view.String()
+	result = strings.TrimRight(result, "\n\r ")
+	return result
 }
 
 func main() {
