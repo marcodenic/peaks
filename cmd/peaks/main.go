@@ -40,6 +40,9 @@ import (
 	"github.com/marcodenic/peaks/internal/ui"
 )
 
+// version is set at build time via -ldflags
+var version = "dev"
+
 const (
 	// Update frequency for bandwidth monitoring
 	updateInterval = 500 * time.Millisecond
@@ -316,18 +319,40 @@ func (m model) View() string {
 		view.WriteString(m.statusbar.View())
 	}
 
-	// Controls help
+	// Title and controls help
 	if m.height > 10 { // Only show if we have enough space
 		view.WriteString("\n")
+		
+		// Create title
+		titleStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#60A5FA")).
+			Bold(true)
+		title := titleStyle.Render("🏔️ PEAKS " + version)
+		
+		// Create help text
 		helpStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#6B7280"))
-
 		controls := "r: reset • p: pause • s: statusbar • m: mode • l: scaling • t: time • q: quit"
 		if m.paused {
 			controls = "r: reset • p: resume • s: statusbar • m: mode • l: scaling • t: time • q: quit"
 		}
-
-		view.WriteString(helpStyle.Render(controls))
+		help := helpStyle.Render(controls)
+		
+		// Calculate spacing to right-align help
+		titleWidth := lipgloss.Width(title)
+		helpWidth := lipgloss.Width(help)
+		availableWidth := m.width
+		
+		if titleWidth + helpWidth < availableWidth {
+			// Right-align help text
+			spacingWidth := availableWidth - titleWidth - helpWidth
+			spacing := strings.Repeat(" ", spacingWidth)
+			bottomLine := title + spacing + help
+			view.WriteString(bottomLine)
+		} else {
+			// Fall back to just showing title if not enough space
+			view.WriteString(title)
+		}
 	}
 
 	// Ensure we don't end with trailing newlines
