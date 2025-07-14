@@ -76,7 +76,11 @@ func (bc *BrailleChart) SetHeight(height int) {
 
 // SetOverlayMode sets the display mode
 func (bc *BrailleChart) SetOverlayMode(enabled bool) {
-	bc.overlayMode = enabled
+	if bc.overlayMode != enabled {
+		bc.overlayMode = enabled
+		// Invalidate cache since overlay and split modes render differently
+		bc.invalidateColumnCache()
+	}
 }
 
 // ToggleOverlayMode toggles between split axis and overlay mode
@@ -333,29 +337,56 @@ func (bc *BrailleChart) renderColumnToCache(upload, download uint64, centerLine 
 	// Create temporary builders for this column
 	tempLines := make([]strings.Builder, bc.height)
 	
-	// Calculate heights for upload and download using scaling
-	halfHeight := centerLine * brailleDots
-	halfHeightFloat := float64(halfHeight)
+	if bc.overlayMode {
+		// Overlay mode rendering
+		fullHeight := bc.height * brailleDots
+		fullHeightFloat := float64(fullHeight)
 
-	// Apply scaling to the values
-	uploadScale := bc.scaleValue(upload, bc.maxValue)
-	downloadScale := bc.scaleValue(download, bc.maxValue)
+		// Apply scaling to the values
+		uploadScale := bc.scaleValue(upload, bc.maxValue)
+		downloadScale := bc.scaleValue(download, bc.maxValue)
 
-	uploadHeight := int(uploadScale * halfHeightFloat)
-	downloadHeight := int(downloadScale * halfHeightFloat)
+		uploadHeight := int(uploadScale * fullHeightFloat)
+		downloadHeight := int(downloadScale * fullHeightFloat)
 
-	// Clamp values
-	if uploadHeight > halfHeight {
-		uploadHeight = halfHeight
-	}
-	if downloadHeight > halfHeight {
-		downloadHeight = halfHeight
-	}
+		// Clamp values
+		if uploadHeight > fullHeight {
+			uploadHeight = fullHeight
+		}
+		if downloadHeight > fullHeight {
+			downloadHeight = fullHeight
+		}
 
-	// Render each row in this column
-	for y := 0; y < bc.height; y++ {
-		char := bc.createBrailleCharForLineSplit(y, uploadHeight, downloadHeight, halfHeight, uploadScale, downloadScale)
-		tempLines[y].WriteString(char)
+		// Render each row in this column for overlay mode
+		for y := 0; y < bc.height; y++ {
+			char := bc.createBrailleCharForOverlay(y, uploadHeight, downloadHeight, fullHeight, uploadScale, downloadScale)
+			tempLines[y].WriteString(char)
+		}
+	} else {
+		// Split mode rendering
+		halfHeight := centerLine * brailleDots
+		halfHeightFloat := float64(halfHeight)
+
+		// Apply scaling to the values
+		uploadScale := bc.scaleValue(upload, bc.maxValue)
+		downloadScale := bc.scaleValue(download, bc.maxValue)
+
+		uploadHeight := int(uploadScale * halfHeightFloat)
+		downloadHeight := int(downloadScale * halfHeightFloat)
+
+		// Clamp values
+		if uploadHeight > halfHeight {
+			uploadHeight = halfHeight
+		}
+		if downloadHeight > halfHeight {
+			downloadHeight = halfHeight
+		}
+
+		// Render each row in this column for split mode
+		for y := 0; y < bc.height; y++ {
+			char := bc.createBrailleCharForLineSplit(y, uploadHeight, downloadHeight, halfHeight, uploadScale, downloadScale)
+			tempLines[y].WriteString(char)
+		}
 	}
 	
 	// Convert to strings
