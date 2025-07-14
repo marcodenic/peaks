@@ -27,6 +27,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -40,8 +42,16 @@ import (
 	"github.com/marcodenic/peaks/internal/ui"
 )
 
-// version is set at build time via -ldflags
-var version = "dev"
+// getVersion returns the version of the application
+func getVersion() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		return info.Main.Version
+	}
+	return "dev"
+}
+
+// version is set at build time via -ldflags or detected automatically
+var version = getVersion()
 
 const (
 	// Update frequency for bandwidth monitoring
@@ -362,6 +372,12 @@ func (m model) View() string {
 }
 
 func main() {
+	// Handle version flag
+	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
+		fmt.Printf("PEAKS %s\n", getVersion())
+		return
+	}
+
 	p := tea.NewProgram(
 		initialModel(), 
 		tea.WithAltScreen(),
