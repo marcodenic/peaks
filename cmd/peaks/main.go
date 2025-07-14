@@ -327,7 +327,7 @@ func (m model) View() string {
 		titleStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#60A5FA")).
 			Bold(true)
-		title := titleStyle.Render("🏔️ PEAKS " + version)
+		title := titleStyle.Render("  🏔️ PEAKS " + version)
 		
 		// Create help text
 		helpStyle := lipgloss.NewStyle().
