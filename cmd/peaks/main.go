@@ -149,7 +149,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.chart.SetMaxPoints(maxDataPoints)
 
 		// Update chart dimensions (always responsive to terminal width)
-		chartHeight := m.height - 2 // Leave room for title and status
+		// Account for: statusbar (1 if shown) and help text (1)
+		chartHeight := m.height - 2 // Help text + buffer
 		if m.showStatusbar {
 			chartHeight -= 1 // Leave room for statusbar
 		}
@@ -179,7 +180,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Stats):
 			m.showStatusbar = !m.showStatusbar
 			// Recalculate chart height
-			chartHeight := m.height - 2
+			chartHeight := m.height - 2 // Help text + buffer
 			if m.showStatusbar {
 				chartHeight -= 1
 			}
@@ -305,16 +306,6 @@ func (m model) View() string {
 
 	var view strings.Builder
 
-	// Title
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#60A5FA")). // Blue
-		MarginBottom(1)
-
-	title := titleStyle.Render("Peaks - Bandwidth Monitor")
-	view.WriteString(title)
-	view.WriteString("\n")
-
 	// Chart
 	chartView := m.chart.Render()
 	view.WriteString(chartView)
@@ -343,8 +334,12 @@ func (m model) View() string {
 }
 
 func main() {
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	p := tea.NewProgram(
+		initialModel(), 
+		tea.WithAltScreen(),
+	)
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error running program: %v", err)
 	}
 }
+
