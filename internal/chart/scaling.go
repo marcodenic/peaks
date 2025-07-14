@@ -36,7 +36,11 @@ func (bc *BrailleChart) scaleValue(value uint64, maxValue uint64) float64 {
 
 // SetScalingMode sets the scaling mode for the chart
 func (bc *BrailleChart) SetScalingMode(mode ScalingMode) {
-	bc.scalingMode = mode
+	if bc.scalingMode != mode {
+		bc.scalingMode = mode
+		// Invalidate column cache since scaling affects rendering
+		bc.invalidateColumnCache()
+	}
 }
 
 // GetScalingMode returns the current scaling mode
@@ -46,6 +50,7 @@ func (bc *BrailleChart) GetScalingMode() ScalingMode {
 
 // CycleScalingMode cycles through available scaling modes
 func (bc *BrailleChart) CycleScalingMode() ScalingMode {
+	oldMode := bc.scalingMode
 	switch bc.scalingMode {
 	case ScalingLinear:
 		bc.scalingMode = ScalingLogarithmic
@@ -56,6 +61,12 @@ func (bc *BrailleChart) CycleScalingMode() ScalingMode {
 	default:
 		bc.scalingMode = ScalingLinear
 	}
+	
+	// Invalidate column cache if mode changed
+	if oldMode != bc.scalingMode {
+		bc.invalidateColumnCache()
+	}
+	
 	return bc.scalingMode
 }
 
@@ -80,6 +91,7 @@ func (bc *BrailleChart) GetTimeScale() TimeScale {
 
 // CycleTimeScale cycles through available time scales
 func (bc *BrailleChart) CycleTimeScale() TimeScale {
+	oldScale := bc.timeScale
 	switch bc.timeScale {
 	case TimeScale1Min:
 		bc.timeScale = TimeScale3Min
@@ -98,6 +110,12 @@ func (bc *BrailleChart) CycleTimeScale() TimeScale {
 	default:
 		bc.timeScale = TimeScale1Min
 	}
+	
+	// Invalidate column cache if time scale changed (different aggregation)
+	if oldScale != bc.timeScale {
+		bc.invalidateColumnCache()
+	}
+	
 	return bc.timeScale
 }
 

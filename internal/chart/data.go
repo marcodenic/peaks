@@ -67,20 +67,20 @@ func (bc *BrailleChart) recalculateMax() {
 
 // updateMaxValue updates the chart's maximum value for scaling based on visible data
 func (bc *BrailleChart) updateMaxValue() {
-	// For ultimate chart stability during testing, use a FIXED scale
-	// that never changes once data starts coming in
+	visibleMax := bc.getVisibleDataMax()
 	
-	if len(bc.uploadData) == 1 && len(bc.downloadData) == 1 {
-		// First data point - establish the scale based on expected data range
-		// For our test, values go from 10KB to 70KB, so set scale accordingly
-		bc.maxValue = 80 * 1024 // 80KB should handle our test range
-		return
+	// Ensure minimum scale
+	if visibleMax < 1024 {
+		visibleMax = 1024
 	}
 	
-	// After first data point, NEVER change the scale
-	// This ensures perfect visual stability
-	if bc.maxValue < 1024 {
-		bc.maxValue = 80 * 1024 // Fallback to reasonable scale
+	// Update max value with some hysteresis to reduce frequent rescaling
+	// Only increase if new max is significantly higher, or decrease if current is much higher
+	if visibleMax > bc.maxValue {
+		bc.maxValue = visibleMax
+	} else if bc.maxValue > visibleMax*2 && visibleMax > 1024 {
+		// Allow scale to come down if current max is more than double the visible max
+		bc.maxValue = visibleMax
 	}
 }
 

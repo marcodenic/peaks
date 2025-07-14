@@ -371,3 +371,9 @@ func (bc *BrailleChart) renderColumnToCache(upload, download uint64, centerLine 
 func (bc *BrailleChart) SetTimeScale(timeScale TimeScale) {
 	bc.timeScale = timeScale
 }
+
+// invalidateColumnCache clears all cached column data to force re-rendering
+func (bc *BrailleChart) invalidateColumnCache() {
+	bc.columnCache = make(map[int][]string)
+	bc.lastCompleteWindow = -1
+}
