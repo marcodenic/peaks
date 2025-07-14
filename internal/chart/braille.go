@@ -228,17 +228,13 @@ func (bc *BrailleChart) renderWithTimeWindows(chartWidth, centerLine int) {
 	// Update cache for newly completed windows
 	bc.updateColumnCache(totalCompleteWindows, windowSize, centerLine)
 
-	// Calculate which windows to display
-	firstVisibleWindow := 0
-	if totalWindows > chartWidth {
-		firstVisibleWindow = totalWindows - chartWidth
-	}
-
+	// Calculate which windows to display (always fill from right to match 1-minute behavior)
 	for x := 0; x < chartWidth; x++ {
-		windowIndex := firstVisibleWindow + x
+		// Calculate window index, positioning data from the right like 1-minute mode
+		windowIndex := totalWindows - (chartWidth - x)
 		
-		// Check if this window is beyond our data
-		if windowIndex >= totalWindows {
+		// Check if this window is beyond our data (negative index means no data)
+		if windowIndex < 0 || windowIndex >= totalWindows {
 			// No data for this column
 			if bc.overlayMode {
 				bc.renderColumnOverlay(x, 0, 0)
