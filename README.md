@@ -68,7 +68,7 @@ Choose from 1, 3, 5, 10, 15, 30, or 60 minutes of history display. The tool alwa
 ### Using Go (Recommended)
 
 ```bash
-go install github.com/marcodenic/peaks@latest
+go install github.com/marcodenic/peaks/cmd/peaks@latest
 ```
 
 ### Manual Download
