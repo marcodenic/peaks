@@ -192,10 +192,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.Stats):
 			m.showStatusbar = !m.showStatusbar
-			// Recalculate chart height
-			chartHeight := m.height - 3 // Help text + buffer + extra safety
+			// Recalculate chart height (same logic as WindowSizeMsg)
+			chartHeight := m.height - 1 // Leave room for help text
 			if m.showStatusbar {
-				chartHeight -= 1
+				chartHeight -= 1 // Leave room for statusbar
 			}
 			if chartHeight < chart.MinChartHeight {
 				chartHeight = chart.MinChartHeight
