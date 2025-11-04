@@ -1,12 +1,15 @@
 # 🏔️ PEAKS - Beautiful Terminal Bandwidth Monitor
 
-![PEAKS Screenshot - Split Mode](peaks.png)
-
-_Split axis mode with upload below and download above the central axis_
-
-![PEAKS Screenshot - Overlay Mode](peaks-mode2.png)
-
-_Overlay mode with both charts combined at the bottom, showing yellow overlap_
+<table>
+  <tr>
+    <td><img src="screenshots/screenshot1.png" alt="PEAKS Screenshot 1"/></td>
+    <td><img src="screenshots/screenshot2.png" alt="PEAKS Screenshot 2"/></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/screenshot3.png" alt="PEAKS Screenshot 3"/></td>
+    <td><img src="screenshots/screenshot4.png" alt="PEAKS Screenshot 4"/></td>
+  </tr>
+</table>
 
 A modern, real-time bandwidth monitoring tool for your terminal with high-resolution braille charts and beautiful UI.
 
