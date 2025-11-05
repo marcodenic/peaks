@@ -26,11 +26,16 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
+	"os/exec"
+	"os/signal"
 	"runtime/debug"
 	"strings"
+	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -371,19 +376,185 @@ func (m model) View() string {
 	return result
 }
 
+// runCompactMode runs the bandwidth monitor in compact mode (2-line header)
+// This forks to background and sets up scroll regions
+func runCompactMode() {
+	// Check if we're already the background daemon
+	isDaemon := os.Getenv("PEAKS_DAEMON") == "1"
+	
+	if !isDaemon {
+		// We're the parent - fork to background
+		env := append(os.Environ(), "PEAKS_DAEMON=1")
+		cmd := exec.Command(os.Args[0], "--compact")
+		cmd.Env = env
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		
+		// Start the daemon
+		if err := cmd.Start(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to start daemon: %v\n", err)
+			os.Exit(1)
+		}
+		
+		// Give daemon a moment to start
+		time.Sleep(50 * time.Millisecond)
+		
+		// Move cursor up and clear the command line that was just printed
+		// We need to clear the "./peaks --compact" line that the shell echoed
+		fmt.Print("\033[1A")                          // Move up 1 line (to where the command was)
+		fmt.Print("\033[2K")                          // Clear that line
+		fmt.Print("\r")                               // Return to start of line
+		
+		// Now set up the display properly
+		termHeight := getTerminalHeight()
+		fmt.Print("\033[2J")                          // Clear entire screen
+		fmt.Print("\033[H")                           // Move to home
+		fmt.Print("\n\n")                             // Reserve top 2 lines
+		fmt.Printf("\033[3;%dr", termHeight)          // Set scroll region from line 3 to bottom
+		fmt.Print("\033[3;1H")                        // Move to line 3, column 1
+		
+		// Save PID for cleanup (user can find it with: pgrep peaks)
+		pidFile := fmt.Sprintf("/tmp/peaks-%d.pid", os.Getpid())
+		os.WriteFile(pidFile, []byte(fmt.Sprintf("%d", cmd.Process.Pid)), 0644)
+		
+		// Parent exits, returns control to shell
+		return
+	}
+	
+	// We're the daemon - do the actual monitoring
+	runCompactDaemon()
+}
+
+// runCompactDaemon runs as a background daemon
+func runCompactDaemon() {
+	// Initialize monitor and chart
+	mon := monitor.NewBandwidthMonitor()
+	ch := chart.NewBrailleChart(defaultDataPoints)
+	
+	// Store 60 minutes of data
+	maxDataPoints := 60 * 60 * 2
+	ch.SetMaxPoints(maxDataPoints)
+
+	// Get initial terminal dimensions
+	termWidth := getTerminalWidth()
+	termHeight := getTerminalHeight()
+
+	// Set up signal handling for Ctrl+C
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	
+	defer func() {
+		// Cleanup: restore normal scroll region and clear top lines
+		fmt.Printf("\033[1;%dr", termHeight)      // Reset scroll region to full screen
+		fmt.Print("\033[H\033[2K")                // Clear line 1
+		fmt.Print("\033[2;1H\033[2K")             // Clear line 2
+		fmt.Print("\033[2J\033[H")                // Clear screen and move home
+	}()
+
+	// Main update loop
+	ticker := time.NewTicker(updateInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Get current bandwidth
+			upload, download, err := mon.GetCurrentRates()
+			if err == nil {
+				ch.AddDataPoint(upload, download)
+			}
+
+			// Check for terminal resize
+			newWidth := getTerminalWidth()
+			newHeight := getTerminalHeight()
+			if newWidth != termWidth || newHeight != termHeight {
+				termWidth = newWidth
+				termHeight = newHeight
+			}
+
+			// Render compact chart
+			compactView := ch.RenderCompact(termWidth)
+
+			// Update top 2 lines WITHOUT affecting scroll region or cursor
+			fmt.Print("\0337")                    // Save cursor position
+			fmt.Print("\033[1;1H")                // Move to line 1, column 1 (absolute)
+			fmt.Print(compactView)                // Draw 2 lines
+			fmt.Print("\0338")                    // Restore cursor position
+
+		case <-sigChan:
+			return
+		}
+	}
+}
+
+// getTerminalHeight gets terminal height
+func getTerminalHeight() int {
+	type winsize struct {
+		Row    uint16
+		Col    uint16
+		Xpixel uint16
+		Ypixel uint16
+	}
+	
+	ws := &winsize{}
+	retCode, _, _ := syscall.Syscall(syscall.SYS_IOCTL,
+		uintptr(syscall.Stdin),
+		uintptr(syscall.TIOCGWINSZ),
+		uintptr(unsafe.Pointer(ws)))
+
+	if int(retCode) == -1 {
+		return 24 // Fallback
+	}
+	
+	return int(ws.Row)
+}
+
+// getTerminalWidth attempts to get terminal width using ioctl
+func getTerminalWidth() int {
+	type winsize struct {
+		Row    uint16
+		Col    uint16
+		Xpixel uint16
+		Ypixel uint16
+	}
+	
+	ws := &winsize{}
+	retCode, _, _ := syscall.Syscall(syscall.SYS_IOCTL,
+		uintptr(syscall.Stdin),
+		uintptr(syscall.TIOCGWINSZ),
+		uintptr(unsafe.Pointer(ws)))
+
+	if int(retCode) == -1 {
+		return 80 // Fallback
+	}
+	
+	return int(ws.Col)
+}
+
 func main() {
+	// Parse command-line flags
+	compactMode := flag.Bool("compact", false, "run in compact mode (2-line display at top of terminal)")
+	showVersion := flag.Bool("version", false, "show version information")
+	flag.BoolVar(showVersion, "v", false, "show version information (shorthand)")
+	flag.Parse()
+
 	// Handle version flag
-	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
+	if *showVersion {
 		fmt.Printf("PEAKS %s\n", getVersion())
 		return
 	}
 
-	p := tea.NewProgram(
-		initialModel(), 
-		tea.WithAltScreen(),
-	)
-	if _, err := p.Run(); err != nil {
-		fmt.Printf("Error running program: %v", err)
+	// Run in compact mode or full mode
+	if *compactMode {
+		runCompactMode()
+	} else {
+		p := tea.NewProgram(
+			initialModel(),
+			tea.WithAltScreen(),
+		)
+		if _, err := p.Run(); err != nil {
+			fmt.Printf("Error running program: %v", err)
+		}
 	}
 }
 

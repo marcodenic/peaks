@@ -1,0 +1,53 @@
+#!/bin/bash
+# peaks-session - Run peaks in a split tmux session
+
+# Check if we're already in a peaks tmux session
+if [ "$PEAKS_SESSION" = "active" ]; then
+    echo "Already in a peaks session!"
+    exit 1
+fi
+
+# Check if tmux is installed
+if ! command -v tmux &> /dev/null; then
+    echo "Error: tmux is required for compact mode"
+    echo "Install with: brew install tmux"
+    exit 1
+fi
+
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PEAKS_BIN="$SCRIPT_DIR/peaks"
+
+# Check if peaks binary exists
+if [ ! -f "$PEAKS_BIN" ]; then
+    echo "Error: peaks binary not found at $PEAKS_BIN"
+    exit 1
+fi
+
+# Create a new tmux session
+SESSION_NAME="peaks-monitor-$$"
+
+# Start tmux session with peaks at top
+tmux new-session -d -s "$SESSION_NAME" -n "peaks"
+
+# Set environment variable to detect we're in a peaks session
+tmux set-environment -t "$SESSION_NAME" PEAKS_SESSION "active"
+
+# Split window horizontally (top/bottom)
+tmux split-window -t "$SESSION_NAME" -v -p 85
+
+# Run peaks in the top pane (pane 0)
+tmux send-keys -t "$SESSION_NAME:0.0" "PEAKS_SESSION=active $PEAKS_BIN" C-m
+
+# Start shell in bottom pane (pane 1)
+tmux send-keys -t "$SESSION_NAME:0.1" "PEAKS_SESSION=active" C-m
+tmux send-keys -t "$SESSION_NAME:0.1" "clear" C-m
+
+# Select the bottom pane (where the shell is)
+tmux select-pane -t "$SESSION_NAME:0.1"
+
+# Attach to the session
+tmux attach-session -t "$SESSION_NAME"
+
+# Cleanup when session ends
+tmux kill-session -t "$SESSION_NAME" 2>/dev/null
