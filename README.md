@@ -9,6 +9,9 @@
     <td><img src="screenshots/screenshot3.png" alt="PEAKS Screenshot 3"/></td>
     <td><img src="screenshots/screenshot4.png" alt="PEAKS Screenshot 4"/></td>
   </tr>
+  <tr>
+    <td colspan="2"><img src="screenshots/compact-mode.png" alt="PEAKS Compact Mode"/></td>
+  </tr>
 </table>
 
 A modern, real-time bandwidth monitoring tool for your terminal with high-resolution braille charts and beautiful UI.
@@ -26,13 +29,46 @@ A modern, real-time bandwidth monitoring tool for your terminal with high-resolu
 - 📈 **Advanced scaling modes** - Linear, logarithmic, and square root scaling for better data visualization
 - 🌈 **Gradient coloring** - Height-based color gradients
 - ⏱️ **Flexible time scales** - Adjustable history from 1 to 60 minutes
+- 📐 **Compact mode** - Minimal 2-line header display for always-on monitoring
 
 ## 🎮 Usage
 
-Simply run the binary:
+### Full-Screen Mode
+
+Simply run the binary for the full interactive experience:
 
 ```bash
 ./peaks
+```
+
+### Compact Mode
+
+Run as a persistent header display at the top of your terminal:
+
+```bash
+./peaks --compact
+```
+
+Compact mode creates a minimal 2-line bandwidth chart at the top of your terminal, allowing you to continue using your shell while monitoring network activity in real-time. The chart automatically fills the full terminal width and resizes dynamically.
+
+**Compact Mode Options:**
+
+```bash
+./peaks --compact                    # Basic 2-line compact mode
+./peaks --compact --overlay          # Use overlay mode (both graphs from bottom)
+./peaks --compact --time 5           # Show 5 minutes of history
+./peaks --compact --size 3           # Use 3 lines instead of 2
+```
+
+Available flags:
+- `--compact` - Enable compact mode
+- `--overlay` - Use overlay display mode
+- `--time N` - Set time window (1, 5, 10, 30, or 60 minutes)
+- `--size N` - Set chart height in lines (default: 2)
+
+To stop compact mode, use `Ctrl+C` or find and kill the background process:
+```bash
+pkill peaks
 ```
 
 ### Controls
