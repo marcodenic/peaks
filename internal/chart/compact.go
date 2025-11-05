@@ -19,7 +19,7 @@ func (bc *BrailleChart) RenderCompact(terminalWidth int) string {
 
 	// Compact mode is always 2 lines (8 braille rows, since each braille char = 4 vertical dots)
 	const compactHeight = 2
-	chartWidth := terminalWidth - 2 // Small margins
+	chartWidth := terminalWidth // Use full width, no margins
 
 	if chartWidth < 10 {
 		chartWidth = 10
@@ -122,30 +122,30 @@ func (bc *BrailleChart) RenderCompact(terminalWidth int) string {
 			line2.WriteString(style1.Render(string(col1Char)))
 			line1.WriteString(style2.Render(string(col2Char)))
 		} else {
-			// Split mode: download grows from bottom up, upload grows from top down
-			// Line 2 (bottom row): shows download growing upward
-			// Line 1 (top row): shows upload growing downward
-			bottomChar, topChar := bc.renderCompactColumnSplit(uploadHeight, downloadHeight)
+			// Split mode: download grows upward from middle, upload grows downward from middle
+			// Line 1 (top row): shows download (GREEN) growing upward toward top edge
+			// Line 2 (bottom row): shows upload (RED) growing downward toward bottom edge
+			topChar, bottomChar := bc.renderCompactColumnSplit(uploadHeight, downloadHeight)
 			
 			// Color code each character
-			var styleBottom, styleTop lipgloss.Style
+			var styleTop, styleBottom lipgloss.Style
 			
-			// Bottom row shows download (green) growing upward
+			// Top row shows download (green) growing upward
 			if downloadHeight > 0 {
-				styleBottom = downloadStyle
-			} else {
-				styleBottom = bgStyle
-			}
-			
-			// Top row shows upload (red) growing downward
-			if uploadHeight > 0 {
-				styleTop = uploadStyle
+				styleTop = downloadStyle
 			} else {
 				styleTop = bgStyle
 			}
+			
+			// Bottom row shows upload (red) growing downward
+			if uploadHeight > 0 {
+				styleBottom = uploadStyle
+			} else {
+				styleBottom = bgStyle
+			}
 
-			line2.WriteString(styleBottom.Render(string(bottomChar)))
 			line1.WriteString(styleTop.Render(string(topChar)))
+			line2.WriteString(styleBottom.Render(string(bottomChar)))
 		}
 	}
 
@@ -170,24 +170,21 @@ func (bc *BrailleChart) renderCompactColumnOverlay(uploadHeight, downloadHeight,
 }
 
 // renderCompactColumnSplit renders a column in split mode
-// Download (green) grows from bottom upward in line 2
-// Upload (red) grows from top downward in line 1
+// Download (green) in line 1: fills from BOTTOM of line upward (close to red)
+// Upload (red) in line 2: fills from TOP of line downward (close to green)
 func (bc *BrailleChart) renderCompactColumnSplit(uploadHeight, downloadHeight int) (rune, rune) {
-	// In 2-line split mode:
-	// Bottom char (line 2): download grows upward from bottom (0-4 dots)
-	// Top char (line 1): upload grows downward from top (0-4 dots, inverted)
+	// Line 1 (top/green): use getBrailleChar which now fills from BOTTOM up
+	topChar := bc.getBrailleChar(downloadHeight, 0, 4)
 	
-	// Download grows from bottom up
-	bottomChar := bc.getBrailleChar(downloadHeight, 0, 4)
-	
-	// Upload grows from top down (use inverted rendering)
-	topChar := bc.getBrailleCharInverted(uploadHeight, 0, 4)
+	// Line 2 (bottom/red): use getBrailleCharInverted which fills from TOP down
+	bottomChar := bc.getBrailleCharInverted(uploadHeight, 0, 4)
 
-	return bottomChar, topChar
+	return topChar, bottomChar
 }
 
 // getBrailleChar returns a braille character for a given height within a range
 // height: 0-8, startDot: starting position, endDot: ending position
+// Fills from BOTTOM upward
 func (bc *BrailleChart) getBrailleChar(height, startDot, endDot int) rune {
 	if height <= startDot {
 		return '⠀' // Empty braille
@@ -198,13 +195,13 @@ func (bc *BrailleChart) getBrailleChar(height, startDot, endDot int) rune {
 		dotsInRange = endDot - startDot
 	}
 
-	// Braille patterns for vertical bars (using left column of braille cell)
-	// U+2800 is base, add dots: 1=0x01, 2=0x02, 3=0x04, 6=0x08
+	// Braille patterns that fill from BOTTOM to TOP
+	// Reversed order to fill from bottom edge upward
 	patterns := []rune{
 		'⠀', // 0 dots
-		'⠁', // 1 dot
-		'⠃', // 2 dots
-		'⠇', // 3 dots
+		'⡀', // 1 dot at bottom
+		'⡄', // 2 dots from bottom
+		'⡆', // 3 dots from bottom
 		'⡇', // 4 dots (full column)
 	}
 
@@ -214,7 +211,7 @@ func (bc *BrailleChart) getBrailleChar(height, startDot, endDot int) rune {
 	return patterns[dotsInRange]
 }
 
-// getBrailleCharInverted returns a braille character for upload (grows from top down)
+// getBrailleCharInverted returns a braille character that fills from TOP downward
 func (bc *BrailleChart) getBrailleCharInverted(height, startDot, endDot int) rune {
 	if height <= startDot {
 		return '⠀' // Empty braille
@@ -225,14 +222,13 @@ func (bc *BrailleChart) getBrailleCharInverted(height, startDot, endDot int) run
 		dotsInRange = endDot - startDot
 	}
 
-	// Braille patterns for vertical bars growing from top down
-	// These grow from the top of the braille cell downward
+	// Braille patterns that fill from TOP to BOTTOM
 	patterns := []rune{
 		'⠀', // 0 dots
-		'⠈', // 1 dot from top
-		'⠘', // 2 dots from top
-		'⠸', // 3 dots from top
-		'⢸', // 4 dots from top (full column)
+		'⠁', // 1 dot from top
+		'⠃', // 2 dots from top
+		'⠇', // 3 dots from top
+		'⡇', // 4 dots (full column)
 	}
 
 	if dotsInRange >= len(patterns) {
