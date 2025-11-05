@@ -378,7 +378,7 @@ func (m model) View() string {
 
 // runCompactMode runs the bandwidth monitor in compact mode (2-line header)
 // This forks to background and sets up scroll regions
-func runCompactMode(overlay bool, timeMinutes int) {
+func runCompactMode(overlay bool, timeMinutes int, size int) {
 	// Check if we're already the background daemon
 	isDaemon := os.Getenv("PEAKS_DAEMON") == "1"
 	
@@ -393,6 +393,9 @@ func runCompactMode(overlay bool, timeMinutes int) {
 		}
 		if timeMinutes != 1 {
 			args = append(args, "--time", fmt.Sprintf("%d", timeMinutes))
+		}
+		if size != 2 {
+			args = append(args, "--size", fmt.Sprintf("%d", size))
 		}
 		
 		cmd := exec.Command(os.Args[0], args...)
@@ -419,9 +422,13 @@ func runCompactMode(overlay bool, timeMinutes int) {
 		termHeight := getTerminalHeight()
 		fmt.Print("\033[2J")                          // Clear entire screen
 		fmt.Print("\033[H")                           // Move to home
-		fmt.Print("\n\n")                             // Reserve top 2 lines
-		fmt.Printf("\033[3;%dr", termHeight)          // Set scroll region from line 3 to bottom
-		fmt.Print("\033[3;1H")                        // Move to line 3, column 1
+		
+		// Reserve top N lines based on size
+		for i := 0; i < size; i++ {
+			fmt.Print("\n")
+		}
+		fmt.Printf("\033[%d;%dr", size+1, termHeight)  // Set scroll region from line (size+1) to bottom
+		fmt.Printf("\033[%d;1H", size+1)               // Move to line (size+1), column 1
 		
 		// Save PID for cleanup (user can find it with: pgrep peaks)
 		pidFile := fmt.Sprintf("/tmp/peaks-%d.pid", os.Getpid())
@@ -432,11 +439,11 @@ func runCompactMode(overlay bool, timeMinutes int) {
 	}
 	
 	// We're the daemon - do the actual monitoring
-	runCompactDaemon(overlay, timeMinutes)
+	runCompactDaemon(overlay, timeMinutes, size)
 }
 
 // runCompactDaemon runs as a background daemon
-func runCompactDaemon(overlay bool, timeMinutes int) {
+func runCompactDaemon(overlay bool, timeMinutes int, size int) {
 	// Initialize monitor and chart
 	mon := monitor.NewBandwidthMonitor()
 	ch := chart.NewBrailleChart(defaultDataPoints)
@@ -481,8 +488,9 @@ func runCompactDaemon(overlay bool, timeMinutes int) {
 	defer func() {
 		// Cleanup: restore normal scroll region and clear top lines
 		fmt.Printf("\033[1;%dr", termHeight)      // Reset scroll region to full screen
-		fmt.Print("\033[H\033[2K")                // Clear line 1
-		fmt.Print("\033[2;1H\033[2K")             // Clear line 2
+		for i := 1; i <= size; i++ {
+			fmt.Printf("\033[%d;1H\033[2K", i)    // Clear each line
+		}
 		fmt.Print("\033[2J\033[H")                // Clear screen and move home
 	}()
 
@@ -507,14 +515,19 @@ func runCompactDaemon(overlay bool, timeMinutes int) {
 				termHeight = newHeight
 			}
 
-			// Render compact chart with current terminal width
-			compactView := ch.RenderCompact(termWidth)
+			// Render compact chart with current terminal width and size
+			compactView := ch.RenderCompactWithSize(termWidth, size)
 
-			// Update top 2 lines WITHOUT affecting scroll region or cursor
+			// Update top N lines WITHOUT affecting scroll region or cursor
 			fmt.Print("\0337")                    // Save cursor position
-			fmt.Print("\033[1;1H")                // Move to line 1, column 1 (absolute)
-			fmt.Print(compactView)                // Draw 2 lines
-			fmt.Print("\033[K")                   // Clear to end of line (remove any trailing chars)
+			
+			// Clear and update each line to prevent wrapping/leftover chars
+			lines := strings.Split(compactView, "\n")
+			for i := 0; i < size && i < len(lines); i++ {
+				fmt.Printf("\033[%d;1H\033[2K", i+1) // Move to line i+1 and clear entire line
+				fmt.Print(lines[i])                   // Draw the line
+			}
+			
 			fmt.Print("\0338")                    // Restore cursor position
 
 		case <-sigChan:
@@ -533,10 +546,28 @@ func getTerminalHeight() int {
 	}
 	
 	ws := &winsize{}
+	
+	// Try stdout first (works better in daemon mode)
 	retCode, _, _ := syscall.Syscall(syscall.SYS_IOCTL,
-		uintptr(syscall.Stdin),
+		uintptr(syscall.Stdout),
 		uintptr(syscall.TIOCGWINSZ),
 		uintptr(unsafe.Pointer(ws)))
+
+	// If stdout fails, try stderr
+	if int(retCode) == -1 {
+		retCode, _, _ = syscall.Syscall(syscall.SYS_IOCTL,
+			uintptr(syscall.Stderr),
+			uintptr(syscall.TIOCGWINSZ),
+			uintptr(unsafe.Pointer(ws)))
+	}
+	
+	// If both fail, try stdin as last resort
+	if int(retCode) == -1 {
+		retCode, _, _ = syscall.Syscall(syscall.SYS_IOCTL,
+			uintptr(syscall.Stdin),
+			uintptr(syscall.TIOCGWINSZ),
+			uintptr(unsafe.Pointer(ws)))
+	}
 
 	if int(retCode) == -1 {
 		return 24 // Fallback
@@ -555,10 +586,28 @@ func getTerminalWidth() int {
 	}
 	
 	ws := &winsize{}
+	
+	// Try stdout first (works better in daemon mode)
 	retCode, _, _ := syscall.Syscall(syscall.SYS_IOCTL,
-		uintptr(syscall.Stdin),
+		uintptr(syscall.Stdout),
 		uintptr(syscall.TIOCGWINSZ),
 		uintptr(unsafe.Pointer(ws)))
+
+	// If stdout fails, try stderr
+	if int(retCode) == -1 {
+		retCode, _, _ = syscall.Syscall(syscall.SYS_IOCTL,
+			uintptr(syscall.Stderr),
+			uintptr(syscall.TIOCGWINSZ),
+			uintptr(unsafe.Pointer(ws)))
+	}
+	
+	// If both fail, try stdin as last resort
+	if int(retCode) == -1 {
+		retCode, _, _ = syscall.Syscall(syscall.SYS_IOCTL,
+			uintptr(syscall.Stdin),
+			uintptr(syscall.TIOCGWINSZ),
+			uintptr(unsafe.Pointer(ws)))
+	}
 
 	if int(retCode) == -1 {
 		return 80 // Fallback
@@ -572,6 +621,7 @@ func main() {
 	compactMode := flag.Bool("compact", false, "run in compact mode (2-line display at top of terminal)")
 	compactOverlay := flag.Bool("overlay", false, "use overlay mode in compact view (both bars from bottom)")
 	compactTime := flag.Int("time", 1, "time window in minutes for compact mode (1, 5, 10, 30, 60)")
+	compactSize := flag.Int("size", 2, "height in lines for compact mode (2, 3, 4, etc.)")
 	showVersion := flag.Bool("version", false, "show version information")
 	flag.BoolVar(showVersion, "v", false, "show version information (shorthand)")
 	flag.Parse()
@@ -584,7 +634,7 @@ func main() {
 
 	// Run in compact mode or full mode
 	if *compactMode {
-		runCompactMode(*compactOverlay, *compactTime)
+		runCompactMode(*compactOverlay, *compactTime, *compactSize)
 	} else {
 		p := tea.NewProgram(
 			initialModel(),

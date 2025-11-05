@@ -10,26 +10,38 @@ import (
 // This is a simplified version that creates a horizontal visualization suitable
 // for running at the top of a terminal while still allowing terminal use below.
 func (bc *BrailleChart) RenderCompact(terminalWidth int) string {
+	return bc.RenderCompactWithSize(terminalWidth, 2)
+}
+
+// RenderCompactWithSize renders a compact braille chart with custom height
+func (bc *BrailleChart) RenderCompactWithSize(terminalWidth int, compactHeight int) string {
 	if len(bc.uploadData) == 0 && len(bc.downloadData) == 0 {
-		return bc.renderEmptyCompact(terminalWidth)
+		return bc.renderEmptyCompact(terminalWidth, compactHeight)
 	}
 
 	// Update scaling based on currently visible data
 	bc.updateMaxValue()
 
-	// Compact mode is always 2 lines (8 braille rows, since each braille char = 4 vertical dots)
-	const compactHeight = 2
-	chartWidth := terminalWidth // Use exact full width
+	chartWidth := terminalWidth // Use full terminal width
 
 	if chartWidth < 10 {
 		chartWidth = 10
 	}
 
-	// Prepare line builders - pre-allocate for performance
-	line1 := strings.Builder{}
-	line2 := strings.Builder{}
-	line1.Grow(chartWidth * 20) // Account for ANSI color codes
-	line2.Grow(chartWidth * 20)
+	// Prepare line builders based on height
+	lines := make([]strings.Builder, compactHeight)
+	for i := 0; i < compactHeight; i++ {
+		lines[i].Grow(chartWidth * 20) // Account for ANSI color codes
+	}
+
+	// For now, only support split mode with 2 lines (upload/download separate)
+	// or overlay mode with N lines (both from bottom)
+	if compactHeight != 2 {
+		// TODO: Implement multi-line rendering
+		// For now, just render a 2-line chart
+		compactHeight = 2
+		lines = lines[:2]
+	}
 
 	// Get data length
 	dataLen := len(bc.uploadData)
@@ -39,7 +51,7 @@ func (bc *BrailleChart) RenderCompact(terminalWidth int) string {
 	}
 
 	if dataLen == 0 {
-		return bc.renderEmptyCompact(terminalWidth)
+		return bc.renderEmptyCompact(terminalWidth, compactHeight)
 	}
 
 	// Define colors (same as full mode)
@@ -76,7 +88,7 @@ func (bc *BrailleChart) RenderCompact(terminalWidth int) string {
 		// In split mode: each line has 4 dots, so scale to 0-4
 		// In overlay mode: 8 dots total (2 lines * 4 dots)
 		if bc.overlayMode {
-			maxHeight := compactHeight * 4 // 8 dots total
+			maxHeight := compactHeight * 4 // 8 dots total for 2 lines
 			uploadHeight := int(uploadScaled * float64(maxHeight))
 			downloadHeight := int(downloadScaled * float64(maxHeight))
 
@@ -123,8 +135,8 @@ func (bc *BrailleChart) RenderCompact(terminalWidth int) string {
 				style2 = bgStyle
 			}
 
-			line2.WriteString(style1.Render(string(col1Char)))
-			line1.WriteString(style2.Render(string(col2Char)))
+			lines[1].WriteString(style1.Render(string(col1Char)))
+			lines[0].WriteString(style2.Render(string(col2Char)))
 		} else {
 			// Split mode: each line has 4 dots max
 			maxHeightPerLine := 4
@@ -139,8 +151,8 @@ func (bc *BrailleChart) RenderCompact(terminalWidth int) string {
 			}
 
 			// Split mode: download grows upward from middle, upload grows downward from middle
-			// Line 1 (top row): shows download (GREEN) growing upward toward top edge
-			// Line 2 (bottom row): shows upload (RED) growing downward toward bottom edge
+			// Line 0 (top row): shows download (GREEN) growing upward toward top edge
+			// Line 1 (bottom row): shows upload (RED) growing downward toward bottom edge
 			topChar, bottomChar := bc.renderCompactColumnSplit(uploadHeight, downloadHeight)
 			
 			// Color code each character
@@ -160,13 +172,20 @@ func (bc *BrailleChart) RenderCompact(terminalWidth int) string {
 				styleBottom = bgStyle
 			}
 
-			line1.WriteString(styleTop.Render(string(topChar)))
-			line2.WriteString(styleBottom.Render(string(bottomChar)))
+			lines[0].WriteString(styleTop.Render(string(topChar)))
+			lines[1].WriteString(styleBottom.Render(string(bottomChar)))
 		}
 	}
 
 	// Combine lines
-	return line1.String() + "\n" + line2.String()
+	result := strings.Builder{}
+	for i := 0; i < len(lines); i++ {
+		if i > 0 {
+			result.WriteString("\n")
+		}
+		result.WriteString(lines[i].String())
+	}
+	return result.String()
 }
 
 // renderCompactColumnOverlay renders a column in overlay mode (both from bottom)
@@ -282,15 +301,19 @@ func (bc *BrailleChart) getBrailleCharInverted(height, startDot, endDot int) run
 }
 
 // renderEmptyCompact renders an empty compact chart
-func (bc *BrailleChart) renderEmptyCompact(terminalWidth int) string {
+func (bc *BrailleChart) renderEmptyCompact(terminalWidth int, compactHeight int) string {
 	bgColor := lipgloss.Color("#374151")
 	bgStyle := lipgloss.NewStyle().Foreground(bgColor)
 	
-	chartWidth := terminalWidth - 2
+	chartWidth := terminalWidth // Use full width
 	if chartWidth < 10 {
 		chartWidth = 10
 	}
 
 	emptyLine := bgStyle.Render(strings.Repeat("⠀", chartWidth))
-	return emptyLine + "\n" + emptyLine
+	lines := make([]string, compactHeight)
+	for i := 0; i < compactHeight; i++ {
+		lines[i] = emptyLine
+	}
+	return strings.Join(lines, "\n")
 }
