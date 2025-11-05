@@ -472,13 +472,14 @@ func runCompactDaemon() {
 				termHeight = newHeight
 			}
 
-			// Render compact chart
+			// Render compact chart with current terminal width
 			compactView := ch.RenderCompact(termWidth)
 
 			// Update top 2 lines WITHOUT affecting scroll region or cursor
 			fmt.Print("\0337")                    // Save cursor position
 			fmt.Print("\033[1;1H")                // Move to line 1, column 1 (absolute)
 			fmt.Print(compactView)                // Draw 2 lines
+			fmt.Print("\033[K")                   // Clear to end of line (remove any trailing chars)
 			fmt.Print("\0338")                    // Restore cursor position
 
 		case <-sigChan:

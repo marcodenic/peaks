@@ -19,13 +19,13 @@ func (bc *BrailleChart) RenderCompact(terminalWidth int) string {
 
 	// Compact mode is always 2 lines (8 braille rows, since each braille char = 4 vertical dots)
 	const compactHeight = 2
-	chartWidth := terminalWidth // Use full width, no margins
+	chartWidth := terminalWidth // Use exact full width
 
 	if chartWidth < 10 {
 		chartWidth = 10
 	}
 
-	// Prepare line builders
+	// Prepare line builders - pre-allocate for performance
 	line1 := strings.Builder{}
 	line2 := strings.Builder{}
 	line1.Grow(chartWidth * 20) // Account for ANSI color codes
@@ -53,12 +53,14 @@ func (bc *BrailleChart) RenderCompact(terminalWidth int) string {
 	overlapStyle := lipgloss.NewStyle().Foreground(overlapColor)
 	bgStyle := lipgloss.NewStyle().Foreground(bgColor)
 
-	// Render each column
+	// Render each column (same logic as full chart)
 	for x := 0; x < chartWidth; x++ {
 		// Calculate which data point this column represents (scrolling from right)
 		dataIndex := dataLen - (chartWidth - x)
 
 		var uploadVal, downloadVal uint64
+		
+		// Get upload and download values for this column (use 0 if no data yet)
 		if dataIndex >= 0 && dataIndex < len(bc.uploadData) {
 			uploadVal = bc.uploadData[dataIndex]
 		}
@@ -70,20 +72,22 @@ func (bc *BrailleChart) RenderCompact(terminalWidth int) string {
 		uploadScaled := bc.scaleValue(uploadVal, bc.maxValue)
 		downloadScaled := bc.scaleValue(downloadVal, bc.maxValue)
 
-		// Calculate heights (0-8 since we have 2 chars * 4 dots each)
-		maxHeight := compactHeight * 4 // 8 dots total
-		uploadHeight := int(uploadScaled * float64(maxHeight))
-		downloadHeight := int(downloadScaled * float64(maxHeight))
-
-		if uploadHeight > maxHeight {
-			uploadHeight = maxHeight
-		}
-		if downloadHeight > maxHeight {
-			downloadHeight = maxHeight
-		}
-
-		// Render column based on mode
+		// Calculate heights
+		// In split mode: each line has 4 dots, so scale to 0-4
+		// In overlay mode: 8 dots total (2 lines * 4 dots)
 		if bc.overlayMode {
+			maxHeight := compactHeight * 4 // 8 dots total
+			uploadHeight := int(uploadScaled * float64(maxHeight))
+			downloadHeight := int(downloadScaled * float64(maxHeight))
+
+			if uploadHeight > maxHeight {
+				uploadHeight = maxHeight
+			}
+			if downloadHeight > maxHeight {
+				downloadHeight = maxHeight
+			}
+
+			// Render column based on mode
 			// Overlay mode: both start from bottom
 			col1Char, col2Char := bc.renderCompactColumnOverlay(uploadHeight, downloadHeight, maxHeight)
 			
@@ -122,6 +126,18 @@ func (bc *BrailleChart) RenderCompact(terminalWidth int) string {
 			line2.WriteString(style1.Render(string(col1Char)))
 			line1.WriteString(style2.Render(string(col2Char)))
 		} else {
+			// Split mode: each line has 4 dots max
+			maxHeightPerLine := 4
+			uploadHeight := int(uploadScaled * float64(maxHeightPerLine))
+			downloadHeight := int(downloadScaled * float64(maxHeightPerLine))
+
+			if uploadHeight > maxHeightPerLine {
+				uploadHeight = maxHeightPerLine
+			}
+			if downloadHeight > maxHeightPerLine {
+				downloadHeight = maxHeightPerLine
+			}
+
 			// Split mode: download grows upward from middle, upload grows downward from middle
 			// Line 1 (top row): shows download (GREEN) growing upward toward top edge
 			// Line 2 (bottom row): shows upload (RED) growing downward toward bottom edge
@@ -196,13 +212,14 @@ func (bc *BrailleChart) getBrailleChar(height, startDot, endDot int) rune {
 	}
 
 	// Braille patterns that fill from BOTTOM to TOP
-	// Reversed order to fill from bottom edge upward
+	// Using BOTH columns (left + right) for fuller appearance
+	// These patterns start at the BOTTOM and add dots upward
 	patterns := []rune{
-		'⠀', // 0 dots
-		'⡀', // 1 dot at bottom
-		'⡄', // 2 dots from bottom
-		'⡆', // 3 dots from bottom
-		'⡇', // 4 dots (full column)
+		'⠀', // 0 dots (empty)
+		'⠤', // 1 row: dots 3,6 (bottom row)
+		'⠶', // 2 rows: dots 2,3,5,6
+		'⠿', // 3 rows: dots 1,2,3,4,5,6
+		'⣿', // 4 rows: all 8 dots (full)
 	}
 
 	if dotsInRange >= len(patterns) {
@@ -223,12 +240,14 @@ func (bc *BrailleChart) getBrailleCharInverted(height, startDot, endDot int) run
 	}
 
 	// Braille patterns that fill from TOP to BOTTOM
+	// Using BOTH columns (left + right) for fuller appearance
+	// These patterns start at the TOP and add dots downward
 	patterns := []rune{
-		'⠀', // 0 dots
-		'⠁', // 1 dot from top
-		'⠃', // 2 dots from top
-		'⠇', // 3 dots from top
-		'⡇', // 4 dots (full column)
+		'⠀', // 0 dots (empty)
+		'⠉', // 1 row: dots 1,4 (top row)
+		'⠛', // 2 rows: dots 1,2,4,5
+		'⠿', // 3 rows: dots 1,2,3,4,5,6
+		'⣿', // 4 rows: all 8 dots (full)
 	}
 
 	if dotsInRange >= len(patterns) {
