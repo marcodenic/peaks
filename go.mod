@@ -1,8 +1,6 @@
 module github.com/marcodenic/peaks
 
-go 1.23.0
-
-toolchain go1.23.8
+go 1.24.0
 
 require (
 	github.com/charmbracelet/bubbles v0.21.0
@@ -10,6 +8,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/mistakenelf/teacup v0.4.1
 	github.com/shirou/gopsutil/v4 v4.25.6
+	golang.org/x/sys v0.37.0
 )
 
 require (
@@ -34,6 +33,5 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	golang.org/x/sync v0.13.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.12.0 // indirect
 )

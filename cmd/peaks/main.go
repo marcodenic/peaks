@@ -35,7 +35,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -534,86 +533,6 @@ func runCompactDaemon(overlay bool, timeMinutes int, size int) {
 			return
 		}
 	}
-}
-
-// getTerminalHeight gets terminal height
-func getTerminalHeight() int {
-	type winsize struct {
-		Row    uint16
-		Col    uint16
-		Xpixel uint16
-		Ypixel uint16
-	}
-	
-	ws := &winsize{}
-	
-	// Try stdout first (works better in daemon mode)
-	retCode, _, _ := syscall.Syscall(syscall.SYS_IOCTL,
-		uintptr(syscall.Stdout),
-		uintptr(syscall.TIOCGWINSZ),
-		uintptr(unsafe.Pointer(ws)))
-
-	// If stdout fails, try stderr
-	if int(retCode) == -1 {
-		retCode, _, _ = syscall.Syscall(syscall.SYS_IOCTL,
-			uintptr(syscall.Stderr),
-			uintptr(syscall.TIOCGWINSZ),
-			uintptr(unsafe.Pointer(ws)))
-	}
-	
-	// If both fail, try stdin as last resort
-	if int(retCode) == -1 {
-		retCode, _, _ = syscall.Syscall(syscall.SYS_IOCTL,
-			uintptr(syscall.Stdin),
-			uintptr(syscall.TIOCGWINSZ),
-			uintptr(unsafe.Pointer(ws)))
-	}
-
-	if int(retCode) == -1 {
-		return 24 // Fallback
-	}
-	
-	return int(ws.Row)
-}
-
-// getTerminalWidth attempts to get terminal width using ioctl
-func getTerminalWidth() int {
-	type winsize struct {
-		Row    uint16
-		Col    uint16
-		Xpixel uint16
-		Ypixel uint16
-	}
-	
-	ws := &winsize{}
-	
-	// Try stdout first (works better in daemon mode)
-	retCode, _, _ := syscall.Syscall(syscall.SYS_IOCTL,
-		uintptr(syscall.Stdout),
-		uintptr(syscall.TIOCGWINSZ),
-		uintptr(unsafe.Pointer(ws)))
-
-	// If stdout fails, try stderr
-	if int(retCode) == -1 {
-		retCode, _, _ = syscall.Syscall(syscall.SYS_IOCTL,
-			uintptr(syscall.Stderr),
-			uintptr(syscall.TIOCGWINSZ),
-			uintptr(unsafe.Pointer(ws)))
-	}
-	
-	// If both fail, try stdin as last resort
-	if int(retCode) == -1 {
-		retCode, _, _ = syscall.Syscall(syscall.SYS_IOCTL,
-			uintptr(syscall.Stdin),
-			uintptr(syscall.TIOCGWINSZ),
-			uintptr(unsafe.Pointer(ws)))
-	}
-
-	if int(retCode) == -1 {
-		return 80 // Fallback
-	}
-	
-	return int(ws.Col)
 }
 
 func main() {
