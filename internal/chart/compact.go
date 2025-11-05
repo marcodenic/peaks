@@ -1,0 +1,319 @@
+package chart
+
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
+
+// RenderCompact renders a 2-line compact braille chart for terminal header use
+// This is a simplified version that creates a horizontal visualization suitable
+// for running at the top of a terminal while still allowing terminal use below.
+func (bc *BrailleChart) RenderCompact(terminalWidth int) string {
+	return bc.RenderCompactWithSize(terminalWidth, 2)
+}
+
+// RenderCompactWithSize renders a compact braille chart with custom height
+func (bc *BrailleChart) RenderCompactWithSize(terminalWidth int, compactHeight int) string {
+	if len(bc.uploadData) == 0 && len(bc.downloadData) == 0 {
+		return bc.renderEmptyCompact(terminalWidth, compactHeight)
+	}
+
+	// Update scaling based on currently visible data
+	bc.updateMaxValue()
+
+	chartWidth := terminalWidth // Use full terminal width
+
+	if chartWidth < 10 {
+		chartWidth = 10
+	}
+
+	// Prepare line builders based on height
+	lines := make([]strings.Builder, compactHeight)
+	for i := 0; i < compactHeight; i++ {
+		lines[i].Grow(chartWidth * 20) // Account for ANSI color codes
+	}
+
+	// For now, only support split mode with 2 lines (upload/download separate)
+	// or overlay mode with N lines (both from bottom)
+	if compactHeight != 2 {
+		// TODO: Implement multi-line rendering
+		// For now, just render a 2-line chart
+		compactHeight = 2
+		lines = lines[:2]
+	}
+
+	// Get data length
+	dataLen := len(bc.uploadData)
+	downloadLen := len(bc.downloadData)
+	if downloadLen > dataLen {
+		dataLen = downloadLen
+	}
+
+	if dataLen == 0 {
+		return bc.renderEmptyCompact(terminalWidth, compactHeight)
+	}
+
+	// Define colors (same as full mode)
+	uploadColor := lipgloss.Color("#EF4444")   // Red
+	downloadColor := lipgloss.Color("#10B981") // Green
+	overlapColor := lipgloss.Color("#EAB308")  // Yellow for overlap
+	bgColor := lipgloss.Color("#374151")       // Grey background
+
+	uploadStyle := lipgloss.NewStyle().Foreground(uploadColor)
+	downloadStyle := lipgloss.NewStyle().Foreground(downloadColor)
+	overlapStyle := lipgloss.NewStyle().Foreground(overlapColor)
+	bgStyle := lipgloss.NewStyle().Foreground(bgColor)
+
+	// Render each column (same logic as full chart)
+	for x := 0; x < chartWidth; x++ {
+		// Calculate which data point this column represents (scrolling from right)
+		dataIndex := dataLen - (chartWidth - x)
+
+		var uploadVal, downloadVal uint64
+		
+		// Get upload and download values for this column (use 0 if no data yet)
+		if dataIndex >= 0 && dataIndex < len(bc.uploadData) {
+			uploadVal = bc.uploadData[dataIndex]
+		}
+		if dataIndex >= 0 && dataIndex < len(bc.downloadData) {
+			downloadVal = bc.downloadData[dataIndex]
+		}
+
+		// Scale values (returns 0-1 normalized values)
+		uploadScaled := bc.scaleValue(uploadVal, bc.maxValue)
+		downloadScaled := bc.scaleValue(downloadVal, bc.maxValue)
+
+		// Calculate heights
+		// In split mode: each line has 4 dots, so scale to 0-4
+		// In overlay mode: 8 dots total (2 lines * 4 dots)
+		if bc.overlayMode {
+			maxHeight := compactHeight * 4 // 8 dots total for 2 lines
+			uploadHeight := int(uploadScaled * float64(maxHeight))
+			downloadHeight := int(downloadScaled * float64(maxHeight))
+
+			if uploadHeight > maxHeight {
+				uploadHeight = maxHeight
+			}
+			if downloadHeight > maxHeight {
+				downloadHeight = maxHeight
+			}
+
+			// Render column based on mode
+			// Overlay mode: both start from bottom
+			col1Char, col2Char := bc.renderCompactColumnOverlay(uploadHeight, downloadHeight, maxHeight)
+			
+			// Determine color based on overlap
+			var style1, style2 lipgloss.Style
+			if uploadHeight > 0 && downloadHeight > 0 {
+				// Check if there's overlap in each character
+				if uploadHeight >= 4 && downloadHeight >= 4 {
+					style1 = overlapStyle // Both reach into first char
+				} else if uploadHeight > downloadHeight {
+					style1 = uploadStyle
+				} else {
+					style1 = downloadStyle
+				}
+
+				if uploadHeight > 4 && downloadHeight > 4 {
+					style2 = overlapStyle // Both reach into second char
+				} else if uploadHeight > downloadHeight && uploadHeight > 4 {
+					style2 = uploadStyle
+				} else if downloadHeight > 4 {
+					style2 = downloadStyle
+				} else {
+					style2 = bgStyle
+				}
+			} else if uploadHeight > 0 {
+				style1 = uploadStyle
+				style2 = uploadStyle
+			} else if downloadHeight > 0 {
+				style1 = downloadStyle
+				style2 = downloadStyle
+			} else {
+				style1 = bgStyle
+				style2 = bgStyle
+			}
+
+			lines[1].WriteString(style1.Render(string(col1Char)))
+			lines[0].WriteString(style2.Render(string(col2Char)))
+		} else {
+			// Split mode: each line has 4 dots max
+			maxHeightPerLine := 4
+			uploadHeight := int(uploadScaled * float64(maxHeightPerLine))
+			downloadHeight := int(downloadScaled * float64(maxHeightPerLine))
+
+			if uploadHeight > maxHeightPerLine {
+				uploadHeight = maxHeightPerLine
+			}
+			if downloadHeight > maxHeightPerLine {
+				downloadHeight = maxHeightPerLine
+			}
+
+			// Split mode: download grows upward from middle, upload grows downward from middle
+			// Line 0 (top row): shows download (GREEN) growing upward toward top edge
+			// Line 1 (bottom row): shows upload (RED) growing downward toward bottom edge
+			topChar, bottomChar := bc.renderCompactColumnSplit(uploadHeight, downloadHeight)
+			
+			// Color code each character
+			var styleTop, styleBottom lipgloss.Style
+			
+			// Top row shows download (green) growing upward
+			if downloadHeight > 0 {
+				styleTop = downloadStyle
+			} else {
+				styleTop = bgStyle
+			}
+			
+			// Bottom row shows upload (red) growing downward
+			if uploadHeight > 0 {
+				styleBottom = uploadStyle
+			} else {
+				styleBottom = bgStyle
+			}
+
+			lines[0].WriteString(styleTop.Render(string(topChar)))
+			lines[1].WriteString(styleBottom.Render(string(bottomChar)))
+		}
+	}
+
+	// Combine lines
+	result := strings.Builder{}
+	for i := 0; i < len(lines); i++ {
+		if i > 0 {
+			result.WriteString("\n")
+		}
+		result.WriteString(lines[i].String())
+	}
+	return result.String()
+}
+
+// renderCompactColumnOverlay renders a column in overlay mode (both from bottom)
+func (bc *BrailleChart) renderCompactColumnOverlay(uploadHeight, downloadHeight, maxHeight int) (rune, rune) {
+	// In overlay mode, both bars grow from bottom upward
+	// Line 2 (bottom): shows 0-4 dots filling from bottom
+	// Line 1 (top): shows 4-8 dots, but ALSO filling from bottom (its bottom edge)
+	
+	// Use the max of both for display
+	h := uploadHeight
+	if downloadHeight > h {
+		h = downloadHeight
+	}
+	
+	// Bottom character: height 0-4
+	var bottomChar rune
+	if h > 0 {
+		bottomH := h
+		if bottomH > 4 {
+			bottomH = 4
+		}
+		bottomChar = bc.getBrailleChar(bottomH, 0, 4)
+	} else {
+		bottomChar = '⠀'
+	}
+	
+	// Top character: height 5-8, but needs to fill from its BOTTOM
+	var topChar rune
+	if h > 4 {
+		// Height 5 = 1 dot at bottom of top char
+		// Height 6 = 2 dots from bottom of top char
+		// Height 7 = 3 dots from bottom of top char
+		// Height 8 = 4 dots (full)
+		topH := h - 4  // Convert to 0-4 range for top character
+		topChar = bc.getBrailleChar(topH, 0, 4)
+	} else {
+		topChar = '⠀'
+	}
+
+	return bottomChar, topChar
+}
+
+// renderCompactColumnSplit renders a column in split mode
+// Download (green) in line 1: fills from BOTTOM of line upward (close to red)
+// Upload (red) in line 2: fills from TOP of line downward (close to green)
+func (bc *BrailleChart) renderCompactColumnSplit(uploadHeight, downloadHeight int) (rune, rune) {
+	// Line 1 (top/green): use getBrailleChar which now fills from BOTTOM up
+	topChar := bc.getBrailleChar(downloadHeight, 0, 4)
+	
+	// Line 2 (bottom/red): use getBrailleCharInverted which fills from TOP down
+	bottomChar := bc.getBrailleCharInverted(uploadHeight, 0, 4)
+
+	return topChar, bottomChar
+}
+
+// getBrailleChar returns a braille character for a given height within a range
+// height: 0-8, startDot: starting position, endDot: ending position
+// Fills from BOTTOM upward
+func (bc *BrailleChart) getBrailleChar(height, startDot, endDot int) rune {
+	if height <= startDot {
+		return '⠀' // Empty braille
+	}
+
+	dotsInRange := height - startDot
+	if dotsInRange > (endDot - startDot) {
+		dotsInRange = endDot - startDot
+	}
+
+	// Braille patterns that fill from BOTTOM to TOP
+	// Using BOTH columns (left + right) for fuller appearance
+	// These patterns start at the BOTTOM and add dots upward
+	// Dots 7,8 are the bottom row, then 3,6, then 2,5, then 1,4 at top
+	patterns := []rune{
+		'⠀', // 0 dots (empty)
+		'⣀', // 1 row: dots 7,8 (bottom row)
+		'⣤', // 2 rows: dots 3,6,7,8
+		'⣶', // 3 rows: dots 2,3,5,6,7,8
+		'⣿', // 4 rows: all 8 dots (full)
+	}
+
+	if dotsInRange >= len(patterns) {
+		return patterns[len(patterns)-1]
+	}
+	return patterns[dotsInRange]
+}
+
+// getBrailleCharInverted returns a braille character that fills from TOP downward
+func (bc *BrailleChart) getBrailleCharInverted(height, startDot, endDot int) rune {
+	if height <= startDot {
+		return '⠀' // Empty braille
+	}
+
+	dotsInRange := height - startDot
+	if dotsInRange > (endDot - startDot) {
+		dotsInRange = endDot - startDot
+	}
+
+	// Braille patterns that fill from TOP to BOTTOM
+	// Using BOTH columns (left + right) for fuller appearance
+	// These patterns start at the TOP and add dots downward
+	patterns := []rune{
+		'⠀', // 0 dots (empty)
+		'⠉', // 1 row: dots 1,4 (top row)
+		'⠛', // 2 rows: dots 1,2,4,5
+		'⠿', // 3 rows: dots 1,2,3,4,5,6
+		'⣿', // 4 rows: all 8 dots (full)
+	}
+
+	if dotsInRange >= len(patterns) {
+		return patterns[len(patterns)-1]
+	}
+	return patterns[dotsInRange]
+}
+
+// renderEmptyCompact renders an empty compact chart
+func (bc *BrailleChart) renderEmptyCompact(terminalWidth int, compactHeight int) string {
+	bgColor := lipgloss.Color("#374151")
+	bgStyle := lipgloss.NewStyle().Foreground(bgColor)
+	
+	chartWidth := terminalWidth // Use full width
+	if chartWidth < 10 {
+		chartWidth = 10
+	}
+
+	emptyLine := bgStyle.Render(strings.Repeat("⠀", chartWidth))
+	lines := make([]string, compactHeight)
+	for i := 0; i < compactHeight; i++ {
+		lines[i] = emptyLine
+	}
+	return strings.Join(lines, "\n")
+}
