@@ -378,14 +378,24 @@ func (m model) View() string {
 
 // runCompactMode runs the bandwidth monitor in compact mode (2-line header)
 // This forks to background and sets up scroll regions
-func runCompactMode() {
+func runCompactMode(overlay bool, timeMinutes int) {
 	// Check if we're already the background daemon
 	isDaemon := os.Getenv("PEAKS_DAEMON") == "1"
 	
 	if !isDaemon {
 		// We're the parent - fork to background
 		env := append(os.Environ(), "PEAKS_DAEMON=1")
-		cmd := exec.Command(os.Args[0], "--compact")
+		
+		// Build command with flags
+		args := []string{"--compact"}
+		if overlay {
+			args = append(args, "--overlay")
+		}
+		if timeMinutes != 1 {
+			args = append(args, "--time", fmt.Sprintf("%d", timeMinutes))
+		}
+		
+		cmd := exec.Command(os.Args[0], args...)
 		cmd.Env = env
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -422,17 +432,42 @@ func runCompactMode() {
 	}
 	
 	// We're the daemon - do the actual monitoring
-	runCompactDaemon()
+	runCompactDaemon(overlay, timeMinutes)
 }
 
 // runCompactDaemon runs as a background daemon
-func runCompactDaemon() {
+func runCompactDaemon(overlay bool, timeMinutes int) {
 	// Initialize monitor and chart
 	mon := monitor.NewBandwidthMonitor()
 	ch := chart.NewBrailleChart(defaultDataPoints)
 	
-	// Store 60 minutes of data
-	maxDataPoints := 60 * 60 * 2
+	// Set overlay mode if requested
+	ch.SetOverlayMode(overlay)
+	
+	// Map time minutes to TimeScale
+	var timeScale chart.TimeScale
+	switch timeMinutes {
+	case 1:
+		timeScale = chart.TimeScale1Min
+	case 5:
+		timeScale = chart.TimeScale5Min
+	case 10:
+		timeScale = chart.TimeScale10Min
+	case 30:
+		timeScale = chart.TimeScale30Min
+	case 60:
+		timeScale = chart.TimeScale60Min
+	default:
+		timeScale = chart.TimeScale1Min
+	}
+	ch.SetTimeScale(timeScale)
+	
+	// Store enough data for the requested time window
+	// 2 points per second * 60 seconds * minutes
+	maxDataPoints := 2 * 60 * timeMinutes
+	if maxDataPoints < defaultDataPoints {
+		maxDataPoints = defaultDataPoints
+	}
 	ch.SetMaxPoints(maxDataPoints)
 
 	// Get initial terminal dimensions
@@ -535,6 +570,8 @@ func getTerminalWidth() int {
 func main() {
 	// Parse command-line flags
 	compactMode := flag.Bool("compact", false, "run in compact mode (2-line display at top of terminal)")
+	compactOverlay := flag.Bool("overlay", false, "use overlay mode in compact view (both bars from bottom)")
+	compactTime := flag.Int("time", 1, "time window in minutes for compact mode (1, 5, 10, 30, 60)")
 	showVersion := flag.Bool("version", false, "show version information")
 	flag.BoolVar(showVersion, "v", false, "show version information (shorthand)")
 	flag.Parse()
@@ -547,7 +584,7 @@ func main() {
 
 	// Run in compact mode or full mode
 	if *compactMode {
-		runCompactMode()
+		runCompactMode(*compactOverlay, *compactTime)
 	} else {
 		p := tea.NewProgram(
 			initialModel(),

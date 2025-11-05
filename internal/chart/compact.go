@@ -171,16 +171,40 @@ func (bc *BrailleChart) RenderCompact(terminalWidth int) string {
 
 // renderCompactColumnOverlay renders a column in overlay mode (both from bottom)
 func (bc *BrailleChart) renderCompactColumnOverlay(uploadHeight, downloadHeight, maxHeight int) (rune, rune) {
-	// Take the maximum of the two for visualization
-	height := uploadHeight
-	if downloadHeight > height {
-		height = downloadHeight
+	// In overlay mode, both bars grow from bottom upward
+	// Line 2 (bottom): shows 0-4 dots filling from bottom
+	// Line 1 (top): shows 4-8 dots, but ALSO filling from bottom (its bottom edge)
+	
+	// Use the max of both for display
+	h := uploadHeight
+	if downloadHeight > h {
+		h = downloadHeight
 	}
-
-	// Each braille character represents 4 vertical dots
-	// We have 2 characters (8 dots total)
-	bottomChar := bc.getBrailleChar(height, 0, 4)    // Bottom 4 dots
-	topChar := bc.getBrailleChar(height, 4, 8)       // Top 4 dots
+	
+	// Bottom character: height 0-4
+	var bottomChar rune
+	if h > 0 {
+		bottomH := h
+		if bottomH > 4 {
+			bottomH = 4
+		}
+		bottomChar = bc.getBrailleChar(bottomH, 0, 4)
+	} else {
+		bottomChar = '⠀'
+	}
+	
+	// Top character: height 5-8, but needs to fill from its BOTTOM
+	var topChar rune
+	if h > 4 {
+		// Height 5 = 1 dot at bottom of top char
+		// Height 6 = 2 dots from bottom of top char
+		// Height 7 = 3 dots from bottom of top char
+		// Height 8 = 4 dots (full)
+		topH := h - 4  // Convert to 0-4 range for top character
+		topChar = bc.getBrailleChar(topH, 0, 4)
+	} else {
+		topChar = '⠀'
+	}
 
 	return bottomChar, topChar
 }
@@ -214,11 +238,12 @@ func (bc *BrailleChart) getBrailleChar(height, startDot, endDot int) rune {
 	// Braille patterns that fill from BOTTOM to TOP
 	// Using BOTH columns (left + right) for fuller appearance
 	// These patterns start at the BOTTOM and add dots upward
+	// Dots 7,8 are the bottom row, then 3,6, then 2,5, then 1,4 at top
 	patterns := []rune{
 		'⠀', // 0 dots (empty)
-		'⠤', // 1 row: dots 3,6 (bottom row)
-		'⠶', // 2 rows: dots 2,3,5,6
-		'⠿', // 3 rows: dots 1,2,3,4,5,6
+		'⣀', // 1 row: dots 7,8 (bottom row)
+		'⣤', // 2 rows: dots 3,6,7,8
+		'⣶', // 3 rows: dots 2,3,5,6,7,8
 		'⣿', // 4 rows: all 8 dots (full)
 	}
 
