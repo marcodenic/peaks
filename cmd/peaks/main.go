@@ -378,6 +378,17 @@ func (m model) View() string {
 // runCompactMode runs the bandwidth monitor in compact mode (2-line header)
 // This forks to background and sets up scroll regions
 func runCompactMode(overlay bool, timeMinutes int, size int) {
+	// Validate and clamp size (1-5, representing bars per direction)
+	if size < 1 {
+		size = 1
+	}
+	if size > 5 {
+		size = 5
+	}
+	
+	// Convert size to total lines: size=1 means 2 lines (1 up + 1 down), size=2 means 4 lines, etc.
+	totalLines := size * 2
+	
 	// Check if we're already the background daemon
 	isDaemon := os.Getenv("PEAKS_DAEMON") == "1"
 	
@@ -393,7 +404,7 @@ func runCompactMode(overlay bool, timeMinutes int, size int) {
 		if timeMinutes != 1 {
 			args = append(args, "--time", fmt.Sprintf("%d", timeMinutes))
 		}
-		if size != 2 {
+		if size != 1 {
 			args = append(args, "--size", fmt.Sprintf("%d", size))
 		}
 		
@@ -422,12 +433,12 @@ func runCompactMode(overlay bool, timeMinutes int, size int) {
 		fmt.Print("\033[2J")                          // Clear entire screen
 		fmt.Print("\033[H")                           // Move to home
 		
-		// Reserve top N lines based on size
-		for i := 0; i < size; i++ {
+		// Reserve top N lines based on totalLines
+		for i := 0; i < totalLines; i++ {
 			fmt.Print("\n")
 		}
-		fmt.Printf("\033[%d;%dr", size+1, termHeight)  // Set scroll region from line (size+1) to bottom
-		fmt.Printf("\033[%d;1H", size+1)               // Move to line (size+1), column 1
+		fmt.Printf("\033[%d;%dr", totalLines+1, termHeight)  // Set scroll region from line (totalLines+1) to bottom
+		fmt.Printf("\033[%d;1H", totalLines+1)               // Move to line (totalLines+1), column 1
 		
 		// Save PID for cleanup (user can find it with: pgrep peaks)
 		pidFile := fmt.Sprintf("/tmp/peaks-%d.pid", os.Getpid())
@@ -438,11 +449,11 @@ func runCompactMode(overlay bool, timeMinutes int, size int) {
 	}
 	
 	// We're the daemon - do the actual monitoring
-	runCompactDaemon(overlay, timeMinutes, size)
+	runCompactDaemon(overlay, timeMinutes, totalLines)
 }
 
 // runCompactDaemon runs as a background daemon
-func runCompactDaemon(overlay bool, timeMinutes int, size int) {
+func runCompactDaemon(overlay bool, timeMinutes int, totalLines int) {
 	// Initialize monitor and chart
 	mon := monitor.NewBandwidthMonitor()
 	ch := chart.NewBrailleChart(defaultDataPoints)
@@ -487,7 +498,7 @@ func runCompactDaemon(overlay bool, timeMinutes int, size int) {
 	defer func() {
 		// Cleanup: restore normal scroll region and clear top lines
 		fmt.Printf("\033[1;%dr", termHeight)      // Reset scroll region to full screen
-		for i := 1; i <= size; i++ {
+		for i := 1; i <= totalLines; i++ {
 			fmt.Printf("\033[%d;1H\033[2K", i)    // Clear each line
 		}
 		fmt.Print("\033[2J\033[H")                // Clear screen and move home
@@ -514,15 +525,15 @@ func runCompactDaemon(overlay bool, timeMinutes int, size int) {
 				termHeight = newHeight
 			}
 
-			// Render compact chart with current terminal width and size
-			compactView := ch.RenderCompactWithSize(termWidth, size)
+			// Render compact chart with current terminal width and totalLines
+			compactView := ch.RenderCompactWithSize(termWidth, totalLines)
 
 			// Update top N lines WITHOUT affecting scroll region or cursor
 			fmt.Print("\0337")                    // Save cursor position
 			
 			// Clear and update each line to prevent wrapping/leftover chars
 			lines := strings.Split(compactView, "\n")
-			for i := 0; i < size && i < len(lines); i++ {
+			for i := 0; i < totalLines && i < len(lines); i++ {
 				fmt.Printf("\033[%d;1H\033[2K", i+1) // Move to line i+1 and clear entire line
 				fmt.Print(lines[i])                   // Draw the line
 			}
@@ -535,19 +546,61 @@ func runCompactDaemon(overlay bool, timeMinutes int, size int) {
 	}
 }
 
+// stopCompactMode stops any running compact mode daemon
+func stopCompactMode() {
+	// Find all peaks processes
+	cmd := exec.Command("pgrep", "-f", "peaks.*--compact")
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Println("No running compact mode daemon found")
+		return
+	}
+
+	pids := strings.Split(strings.TrimSpace(string(output)), "\n")
+	currentPID := fmt.Sprintf("%d", os.Getpid())
+	
+	stopped := false
+	for _, pid := range pids {
+		pid = strings.TrimSpace(pid)
+		if pid == "" || pid == currentPID {
+			continue
+		}
+		
+		// Try to kill the process
+		killCmd := exec.Command("kill", pid)
+		if err := killCmd.Run(); err != nil {
+			fmt.Printf("Failed to stop process %s: %v\n", pid, err)
+		} else {
+			fmt.Printf("Stopped compact mode daemon (PID: %s)\n", pid)
+			stopped = true
+		}
+	}
+	
+	if !stopped {
+		fmt.Println("No running compact mode daemon found")
+	}
+}
+
 func main() {
 	// Parse command-line flags
 	compactMode := flag.Bool("compact", false, "run in compact mode (2-line display at top of terminal)")
 	compactOverlay := flag.Bool("overlay", false, "use overlay mode in compact view (both bars from bottom)")
 	compactTime := flag.Int("time", 1, "time window in minutes for compact mode (1, 5, 10, 30, 60)")
-	compactSize := flag.Int("size", 2, "height in lines for compact mode (2, 3, 4, etc.)")
+	compactSize := flag.Int("size", 1, "number of bars per direction (1-5: 1=2 lines, 2=4 lines, 3=6 lines, etc.)")
 	showVersion := flag.Bool("version", false, "show version information")
+	stopDaemon := flag.Bool("stop", false, "stop any running compact mode daemon")
 	flag.BoolVar(showVersion, "v", false, "show version information (shorthand)")
 	flag.Parse()
 
 	// Handle version flag
 	if *showVersion {
 		fmt.Printf("PEAKS %s\n", getVersion())
+		return
+	}
+
+	// Handle stop flag
+	if *stopDaemon {
+		stopCompactMode()
 		return
 	}
 

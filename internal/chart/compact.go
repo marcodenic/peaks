@@ -34,15 +34,6 @@ func (bc *BrailleChart) RenderCompactWithSize(terminalWidth int, compactHeight i
 		lines[i].Grow(chartWidth * 20) // Account for ANSI color codes
 	}
 
-	// For now, only support split mode with 2 lines (upload/download separate)
-	// or overlay mode with N lines (both from bottom)
-	if compactHeight != 2 {
-		// TODO: Implement multi-line rendering
-		// For now, just render a 2-line chart
-		compactHeight = 2
-		lines = lines[:2]
-	}
-
 	// Get data length
 	dataLen := len(bc.uploadData)
 	downloadLen := len(bc.downloadData)
@@ -59,11 +50,6 @@ func (bc *BrailleChart) RenderCompactWithSize(terminalWidth int, compactHeight i
 	downloadColor := lipgloss.Color("#10B981") // Green
 	overlapColor := lipgloss.Color("#EAB308")  // Yellow for overlap
 	bgColor := lipgloss.Color("#374151")       // Grey background
-
-	uploadStyle := lipgloss.NewStyle().Foreground(uploadColor)
-	downloadStyle := lipgloss.NewStyle().Foreground(downloadColor)
-	overlapStyle := lipgloss.NewStyle().Foreground(overlapColor)
-	bgStyle := lipgloss.NewStyle().Foreground(bgColor)
 
 	// Render each column (same logic as full chart)
 	for x := 0; x < chartWidth; x++ {
@@ -85,10 +71,10 @@ func (bc *BrailleChart) RenderCompactWithSize(terminalWidth int, compactHeight i
 		downloadScaled := bc.scaleValue(downloadVal, bc.maxValue)
 
 		// Calculate heights
-		// In split mode: each line has 4 dots, so scale to 0-4
-		// In overlay mode: 8 dots total (2 lines * 4 dots)
+		// In split mode: top half shows download, bottom half shows upload
+		// In overlay mode: all lines show both colors from bottom
 		if bc.overlayMode {
-			maxHeight := compactHeight * 4 // 8 dots total for 2 lines
+			maxHeight := compactHeight * 4 // 4 dots per line
 			uploadHeight := int(uploadScaled * float64(maxHeight))
 			downloadHeight := int(downloadScaled * float64(maxHeight))
 
@@ -99,81 +85,25 @@ func (bc *BrailleChart) RenderCompactWithSize(terminalWidth int, compactHeight i
 				downloadHeight = maxHeight
 			}
 
-			// Render column based on mode
-			// Overlay mode: both start from bottom
-			col1Char, col2Char := bc.renderCompactColumnOverlay(uploadHeight, downloadHeight, maxHeight)
-			
-			// Determine color based on overlap
-			var style1, style2 lipgloss.Style
-			if uploadHeight > 0 && downloadHeight > 0 {
-				// Check if there's overlap in each character
-				if uploadHeight >= 4 && downloadHeight >= 4 {
-					style1 = overlapStyle // Both reach into first char
-				} else if uploadHeight > downloadHeight {
-					style1 = uploadStyle
-				} else {
-					style1 = downloadStyle
-				}
-
-				if uploadHeight > 4 && downloadHeight > 4 {
-					style2 = overlapStyle // Both reach into second char
-				} else if uploadHeight > downloadHeight && uploadHeight > 4 {
-					style2 = uploadStyle
-				} else if downloadHeight > 4 {
-					style2 = downloadStyle
-				} else {
-					style2 = bgStyle
-				}
-			} else if uploadHeight > 0 {
-				style1 = uploadStyle
-				style2 = uploadStyle
-			} else if downloadHeight > 0 {
-				style1 = downloadStyle
-				style2 = downloadStyle
-			} else {
-				style1 = bgStyle
-				style2 = bgStyle
-			}
-
-			lines[1].WriteString(style1.Render(string(col1Char)))
-			lines[0].WriteString(style2.Render(string(col2Char)))
+			// Render column for overlay mode - all lines from bottom
+			bc.renderCompactColumnOverlayMultiLine(x, uploadHeight, downloadHeight, maxHeight, compactHeight, lines, uploadColor, downloadColor, overlapColor, bgColor)
 		} else {
-			// Split mode: each line has 4 dots max
-			maxHeightPerLine := 4
-			uploadHeight := int(uploadScaled * float64(maxHeightPerLine))
-			downloadHeight := int(downloadScaled * float64(maxHeightPerLine))
+			// Split mode: top half (compactHeight/2) for download, bottom half for upload
+			halfLines := compactHeight / 2
+			maxHeightPerHalf := halfLines * 4 // 4 dots per line
+			
+			uploadHeight := int(uploadScaled * float64(maxHeightPerHalf))
+			downloadHeight := int(downloadScaled * float64(maxHeightPerHalf))
 
-			if uploadHeight > maxHeightPerLine {
-				uploadHeight = maxHeightPerLine
+			if uploadHeight > maxHeightPerHalf {
+				uploadHeight = maxHeightPerHalf
 			}
-			if downloadHeight > maxHeightPerLine {
-				downloadHeight = maxHeightPerLine
-			}
-
-			// Split mode: download grows upward from middle, upload grows downward from middle
-			// Line 0 (top row): shows download (GREEN) growing upward toward top edge
-			// Line 1 (bottom row): shows upload (RED) growing downward toward bottom edge
-			topChar, bottomChar := bc.renderCompactColumnSplit(uploadHeight, downloadHeight)
-			
-			// Color code each character
-			var styleTop, styleBottom lipgloss.Style
-			
-			// Top row shows download (green) growing upward
-			if downloadHeight > 0 {
-				styleTop = downloadStyle
-			} else {
-				styleTop = bgStyle
-			}
-			
-			// Bottom row shows upload (red) growing downward
-			if uploadHeight > 0 {
-				styleBottom = uploadStyle
-			} else {
-				styleBottom = bgStyle
+			if downloadHeight > maxHeightPerHalf {
+				downloadHeight = maxHeightPerHalf
 			}
 
-			lines[0].WriteString(styleTop.Render(string(topChar)))
-			lines[1].WriteString(styleBottom.Render(string(bottomChar)))
+			// Split mode: download in top half, upload in bottom half
+			bc.renderCompactColumnSplitMultiLine(x, uploadHeight, downloadHeight, halfLines, lines, uploadColor, downloadColor, bgColor)
 		}
 	}
 
@@ -188,57 +118,124 @@ func (bc *BrailleChart) RenderCompactWithSize(terminalWidth int, compactHeight i
 	return result.String()
 }
 
-// renderCompactColumnOverlay renders a column in overlay mode (both from bottom)
-func (bc *BrailleChart) renderCompactColumnOverlay(uploadHeight, downloadHeight, maxHeight int) (rune, rune) {
-	// In overlay mode, both bars grow from bottom upward
-	// Line 2 (bottom): shows 0-4 dots filling from bottom
-	// Line 1 (top): shows 4-8 dots, but ALSO filling from bottom (its bottom edge)
+// renderCompactColumnOverlayMultiLine renders a column in overlay mode with multiple lines
+func (bc *BrailleChart) renderCompactColumnOverlayMultiLine(x, uploadHeight, downloadHeight, maxHeight, compactHeight int, lines []strings.Builder, uploadColor, downloadColor, overlapColor, bgColor lipgloss.Color) {
+	uploadStyle := lipgloss.NewStyle().Foreground(uploadColor)
+	downloadStyle := lipgloss.NewStyle().Foreground(downloadColor)
+	overlapStyle := lipgloss.NewStyle().Foreground(overlapColor)
+	bgStyle := lipgloss.NewStyle().Foreground(bgColor)
 	
-	// Use the max of both for display
-	h := uploadHeight
-	if downloadHeight > h {
-		h = downloadHeight
-	}
-	
-	// Bottom character: height 0-4
-	var bottomChar rune
-	if h > 0 {
-		bottomH := h
-		if bottomH > 4 {
-			bottomH = 4
+	// Render from bottom to top (line index compactHeight-1 is bottom)
+	for lineIdx := 0; lineIdx < compactHeight; lineIdx++ {
+		// Calculate which dots this line represents (from bottom)
+		// Bottom line (lineIdx = compactHeight-1) has dots 0-3
+		// Next line up has dots 4-7, etc.
+		lineFromBottom := compactHeight - 1 - lineIdx
+		dotStart := lineFromBottom * 4
+		
+		// Check if upload/download reach this line
+		uploadInLine := uploadHeight > dotStart
+		downloadInLine := downloadHeight > dotStart
+		
+		if !uploadInLine && !downloadInLine {
+			// Empty line
+			lines[lineIdx].WriteString(bgStyle.Render("⠀"))
+			continue
 		}
-		bottomChar = bc.getBrailleChar(bottomH, 0, 4)
-	} else {
-		bottomChar = '⠀'
+		
+		// Calculate how many dots to fill in this line (0-4)
+		uploadDotsInLine := 0
+		downloadDotsInLine := 0
+		
+		if uploadInLine {
+			uploadDotsInLine = uploadHeight - dotStart
+			if uploadDotsInLine > 4 {
+				uploadDotsInLine = 4
+			}
+		}
+		
+		if downloadInLine {
+			downloadDotsInLine = downloadHeight - dotStart
+			if downloadDotsInLine > 4 {
+				downloadDotsInLine = 4
+			}
+		}
+		
+		// Use the max for the character
+		dotsToFill := uploadDotsInLine
+		if downloadDotsInLine > dotsToFill {
+			dotsToFill = downloadDotsInLine
+		}
+		
+		char := bc.getBrailleChar(dotsToFill, 0, 4)
+		
+		// Determine color based on overlap
+		var style lipgloss.Style
+		if uploadInLine && downloadInLine {
+			style = overlapStyle // Both present = yellow
+		} else if uploadInLine {
+			style = uploadStyle // Upload only = red
+		} else {
+			style = downloadStyle // Download only = green
+		}
+		
+		lines[lineIdx].WriteString(style.Render(string(char)))
 	}
-	
-	// Top character: height 5-8, but needs to fill from its BOTTOM
-	var topChar rune
-	if h > 4 {
-		// Height 5 = 1 dot at bottom of top char
-		// Height 6 = 2 dots from bottom of top char
-		// Height 7 = 3 dots from bottom of top char
-		// Height 8 = 4 dots (full)
-		topH := h - 4  // Convert to 0-4 range for top character
-		topChar = bc.getBrailleChar(topH, 0, 4)
-	} else {
-		topChar = '⠀'
-	}
-
-	return bottomChar, topChar
 }
 
-// renderCompactColumnSplit renders a column in split mode
-// Download (green) in line 1: fills from BOTTOM of line upward (close to red)
-// Upload (red) in line 2: fills from TOP of line downward (close to green)
-func (bc *BrailleChart) renderCompactColumnSplit(uploadHeight, downloadHeight int) (rune, rune) {
-	// Line 1 (top/green): use getBrailleChar which now fills from BOTTOM up
-	topChar := bc.getBrailleChar(downloadHeight, 0, 4)
+// renderCompactColumnSplitMultiLine renders a column in split mode with multiple lines
+func (bc *BrailleChart) renderCompactColumnSplitMultiLine(x, uploadHeight, downloadHeight, halfLines int, lines []strings.Builder, uploadColor, downloadColor, bgColor lipgloss.Color) {
+	uploadStyle := lipgloss.NewStyle().Foreground(uploadColor)
+	downloadStyle := lipgloss.NewStyle().Foreground(downloadColor)
+	bgStyle := lipgloss.NewStyle().Foreground(bgColor)
 	
-	// Line 2 (bottom/red): use getBrailleCharInverted which fills from TOP down
-	bottomChar := bc.getBrailleCharInverted(uploadHeight, 0, 4)
-
-	return topChar, bottomChar
+	totalLines := halfLines * 2
+	
+	// Top half: download (green) - grows UPWARD from center (line halfLines-1) toward top (line 0)
+	for lineIdx := 0; lineIdx < halfLines; lineIdx++ {
+		// Line halfLines-1 is at the center (axis), line 0 is at the top
+		// Calculate distance from center axis
+		distanceFromCenter := (halfLines - 1) - lineIdx
+		dotStart := distanceFromCenter * 4
+		
+		// Check if download reaches this line (growing away from center)
+		if downloadHeight > dotStart {
+			// Calculate how many dots to fill (0-4)
+			dotsInLine := downloadHeight - dotStart
+			if dotsInLine > 4 {
+				dotsInLine = 4
+			}
+			
+			// Use normal braille (fills from bottom up) since we're growing upward from center
+			char := bc.getBrailleChar(dotsInLine, 0, 4)
+			lines[lineIdx].WriteString(downloadStyle.Render(string(char)))
+		} else {
+			lines[lineIdx].WriteString(bgStyle.Render("⠀"))
+		}
+	}
+	
+	// Bottom half: upload (red) - grows DOWNWARD from center (line halfLines) toward bottom (line totalLines-1)
+	for lineIdx := halfLines; lineIdx < totalLines; lineIdx++ {
+		// Line halfLines is at the center (axis), line totalLines-1 is at the bottom
+		// Calculate distance from center axis
+		distanceFromCenter := lineIdx - halfLines
+		dotStart := distanceFromCenter * 4
+		
+		// Check if upload reaches this line (growing away from center)
+		if uploadHeight > dotStart {
+			// Calculate how many dots to fill (0-4)
+			dotsInLine := uploadHeight - dotStart
+			if dotsInLine > 4 {
+				dotsInLine = 4
+			}
+			
+			// Use inverted braille (fills from top down) since we're growing downward from center
+			char := bc.getBrailleCharInverted(dotsInLine, 0, 4)
+			lines[lineIdx].WriteString(uploadStyle.Render(string(char)))
+		} else {
+			lines[lineIdx].WriteString(bgStyle.Render("⠀"))
+		}
+	}
 }
 
 // getBrailleChar returns a braille character for a given height within a range
