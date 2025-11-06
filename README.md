@@ -2,15 +2,35 @@
 
 <table>
   <tr>
-    <td><img src="screenshots/screenshot1.png" alt="PEAKS Screenshot 1"/></td>
-    <td><img src="screenshots/screenshot2.png" alt="PEAKS Screenshot 2"/></td>
+    <td align="center">
+      <img src="screenshots/screenshot1.png" alt="PEAKS Split Mode"/>
+      <br/>
+      <em>Split Axis Mode (default)</em>
+    </td>
+    <td align="center">
+      <img src="screenshots/screenshot2.png" alt="PEAKS Overlay Mode"/>
+      <br/>
+      <em>Overlay Mode (--overlay)</em>
+    </td>
   </tr>
   <tr>
-    <td><img src="screenshots/screenshot3.png" alt="PEAKS Screenshot 3"/></td>
-    <td><img src="screenshots/screenshot4.png" alt="PEAKS Screenshot 4"/></td>
+    <td align="center">
+      <img src="screenshots/screenshot3.png" alt="PEAKS Split Mode"/>
+      <br/>
+      <em>Split Axis Mode</em>
+    </td>
+    <td align="center">
+      <img src="screenshots/screenshot4.png" alt="PEAKS Overlay Mode"/>
+      <br/>
+      <em>Overlay Mode</em>
+    </td>
   </tr>
   <tr>
-    <td colspan="2"><img src="screenshots/compact-mode.png" alt="PEAKS Compact Mode"/></td>
+    <td colspan="2" align="center">
+      <img src="screenshots/compact-mode.png" alt="PEAKS Compact Mode"/>
+      <br/>
+      <em>Compact Mode (--compact)</em>
+    </td>
   </tr>
 </table>
 
