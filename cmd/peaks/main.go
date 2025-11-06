@@ -546,6 +546,41 @@ func runCompactDaemon(overlay bool, timeMinutes int, totalLines int) {
 	}
 }
 
+// stopCompactMode stops any running compact mode daemon
+func stopCompactMode() {
+	// Find all peaks processes
+	cmd := exec.Command("pgrep", "-f", "peaks.*--compact")
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Println("No running compact mode daemon found")
+		return
+	}
+
+	pids := strings.Split(strings.TrimSpace(string(output)), "\n")
+	currentPID := fmt.Sprintf("%d", os.Getpid())
+	
+	stopped := false
+	for _, pid := range pids {
+		pid = strings.TrimSpace(pid)
+		if pid == "" || pid == currentPID {
+			continue
+		}
+		
+		// Try to kill the process
+		killCmd := exec.Command("kill", pid)
+		if err := killCmd.Run(); err != nil {
+			fmt.Printf("Failed to stop process %s: %v\n", pid, err)
+		} else {
+			fmt.Printf("Stopped compact mode daemon (PID: %s)\n", pid)
+			stopped = true
+		}
+	}
+	
+	if !stopped {
+		fmt.Println("No running compact mode daemon found")
+	}
+}
+
 func main() {
 	// Parse command-line flags
 	compactMode := flag.Bool("compact", false, "run in compact mode (2-line display at top of terminal)")
@@ -553,12 +588,19 @@ func main() {
 	compactTime := flag.Int("time", 1, "time window in minutes for compact mode (1, 5, 10, 30, 60)")
 	compactSize := flag.Int("size", 1, "number of bars per direction (1-5: 1=2 lines, 2=4 lines, 3=6 lines, etc.)")
 	showVersion := flag.Bool("version", false, "show version information")
+	stopDaemon := flag.Bool("stop", false, "stop any running compact mode daemon")
 	flag.BoolVar(showVersion, "v", false, "show version information (shorthand)")
 	flag.Parse()
 
 	// Handle version flag
 	if *showVersion {
 		fmt.Printf("PEAKS %s\n", getVersion())
+		return
+	}
+
+	// Handle stop flag
+	if *stopDaemon {
+		stopCompactMode()
 		return
 	}
 
